@@ -1,0 +1,41 @@
+<html>
+<head>
+<style>
+div.zr {
+    size: *;
+    background-color: #eee;
+}
+</style>
+<script type="text/tiscript">
+include "../zrender/zrender.tis"
+var zr = zrender.init($(div.zr));
+
+var curve = new zrender.BezierCurve({
+	position: [0, 0],
+	scale: [1, 1],
+	shape: {
+		x1: 10,
+		y1: 400,
+		cpx1: 0,
+		cpy1: 0,
+		cpx2: 0,
+		cpy2: 0,
+		x2: 300,
+		y2: 30
+	},
+	draggable: true
+});
+
+zr.add(curve);
+
+curve.animateTo({
+	shape: {
+		percent: 0
+	}
+}, 2000);
+</script>
+</head>
+<body>
+<div.zr/>
+</body>
+</html>

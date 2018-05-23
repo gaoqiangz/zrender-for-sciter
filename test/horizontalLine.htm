@@ -1,0 +1,27 @@
+<html>
+<head>
+<style>
+div.zr {
+    size: *;
+    background-color: #eee;
+}
+</style>
+<script type="text/tiscript">
+include "../zrender/zrender.tis"
+var zr = zrender.init($(div.zr));
+
+var line = new zrender.Line({
+	shape: {
+		x1: 30,
+		y1: 50,
+		x2: 100,
+		y2: 50
+	}
+});
+zr.add(line);
+</script>
+</head>
+<body>
+<div.zr/>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<html>
+<head>
+<style>
+div.zr {
+    size: *;
+    background-color: #eee;
+}
+</style>
+<script type="text/tiscript">
+include "../zrender/zrender.tis"
+var zr = zrender.init($(div.zr));
+var w = zr.getWidth();
+var h = zr.getHeight();
+
+
+var r = 30;
+var circle = new zrender.Circle({
+	shape: {
+		cx: r,
+		cy: h / 2,
+		r: r
+	},
+	style: {
+		fill: "transparent",
+		stroke: "#FF6EBE"
+	},
+	silent: true
+});
+
+circle.animate("shape", true)
+	.when(5000, {
+		cx: w - r
+	})
+	.when(10000, {
+		cx: r
+	})
+	.start();
+
+zr.add(circle);
+</script>
+</head>
+<body>
+<div.zr/>
+</body>
+</html>

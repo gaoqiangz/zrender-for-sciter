@@ -1,0 +1,115 @@
+<html>
+<head>
+<style>
+div.zr {
+    size: *;
+    //background-color: #eee;
+	background:linear-gradient(top,black,white);
+}
+</style>
+<script type="text/tiscript">
+include "../zrender/zrender.tis"
+var zr = zrender.init($(div.zr));
+var w = zr.getWidth();
+var h = zr.getHeight();
+
+function self.ready() {
+	var N = 10;
+
+	for (var i = 0; i < N ; i ++) {
+		createShape(i);
+	}
+}
+
+function createShape(i) {
+	var ShapeClass = ( i % 5 == 0 ) ? zrender.Trochoid : zrender.Rose;
+	var r = ( i % 5 == 0 ) ? random(50, 20) : [random(100, 30)];
+
+	var shape = new ShapeClass({
+		position: [random(w), random(h)],
+		shape: {
+			cx: 0,
+			cy: 0,
+			r: r,
+			r0: random(20, 10),
+			d: random(100),
+			k: random(10),
+			n: random(5),
+			location: ["in", "out"][i % 2]
+		},
+		style: {
+			lineWidth: 1,
+			stroke: "#" + (Math.random() + "").slice(2, 8)
+		},
+		rotation: Math.PI * 2 / random(360),
+		hoverable: false,
+		draggable: false
+	});
+	zr.add(shape);
+	animate(shape);
+}
+
+function animate(shape) {
+	var time = random(1000, 100);
+	var type = shape.type == "rose" ? random(6) : random(3);
+	var easing = [
+		"Linear", "QuadraticIn", "QuadraticOut", "QuadraticInOut",
+		"CubicIn", "CubicOut", "CubicInOut", "QuarticIn", "QuarticOut",
+		"QuarticInOut", "QuinticIn", "QuinticOut", "QuinticInOut",  "SinusoidalIn",
+		"SinusoidalOut", "SinusoidalInOut", "ExponentialIn", "ExponentialOut",
+		"ExponentialInOut", "CircularIn", "CircularOut", "CircularInOut",
+		"ElasticIn", "ElasticOut", "ElasticInOut", "BackIn", "BackOut",
+		"BackInOut", "BounceIn", "BounceOut", "BounceInOut"
+		][0]//[random(30)];
+
+	var move = shape.animate("");
+
+	switch (type) {
+		case 0 :
+			move.when(time, {
+				scale : [random(3, 1), random(3, 1)]
+			});
+			break;
+		case 1 :
+			move.when(time, {
+				position : [random(w), random(h)]
+			});
+			break;
+		case 2 :
+			move.when(time, {
+				rotation : Math.PI * 2 * random(10, 1)
+			});
+			break;
+		case 3 :
+			move = shape.animate("shape").when(time, {
+				r : [random(100, 30)]
+			});
+			break;
+		case 4 :
+			move = shape.animate("shape").when(time, {
+				k : random(10)
+			});
+			break;
+		case 5 :
+			move = shape.animate("shape").when(time, {
+				n : random(5)
+			});
+			break;
+	}
+
+	move.done(function() {
+			animate(shape);
+		})
+		.start(easing);
+}
+
+function random(max, min = 0) {
+	min = min || 0;
+	return (Math.floor(Math.random() * (max - min)).toInteger() % (max - min).toInteger() + min).toFloat();
+}
+</script>
+</head>
+<body>
+<div.zr/>
+</body>
+</html>

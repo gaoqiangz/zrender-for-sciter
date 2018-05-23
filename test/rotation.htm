@@ -1,0 +1,37 @@
+<html>
+<head>
+<style>
+div.zr {
+    size: *;
+    background-color: #eee;
+}
+</style>
+<script type="text/tiscript">
+include "../zrender/zrender.tis"
+var zr = zrender.init($(div.zr));
+var text1 = new zrender.Text({
+							style: {
+								text: "aaaaaa"
+							},
+							position: [100, 100]
+						});
+var text2 = new zrender.Text({
+							style: {
+								text: "aaaaaa"
+							},
+							position: [300, 100]
+						});
+zr.add(text1);
+zr.add(text2);
+text1.animateTo({
+	rotation: Math.PI
+}, 2000);
+text2.animateTo({
+	rotation: -Math.PI
+}, 2000);
+</script>
+</head>
+<body>
+<div.zr/>
+</body>
+</html>

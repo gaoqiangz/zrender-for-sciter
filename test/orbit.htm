@@ -1,0 +1,94 @@
+<html>
+<head>
+<style>
+div.zr {
+    size: *;
+    background-color: #000;
+}
+</style>
+<script type="text/tiscript">
+include "../zrender/zrender.tis"
+var zr = zrender.init($(div.zr));
+
+var starShape = new zrender.Star({
+            shape: {
+		x: 10,
+		y: 10,
+		r: 8,
+		n: 5
+	},
+	style: {
+		stroke: "rgb(52,179,242)",
+		fill: "#fff",
+		shadowBlur: 10,
+		shadowOffsetX: 0,
+		shadowOffsetY: 0
+	}
+});
+var zImage = zr.pathToImage(starShape);
+
+var NUMBER = 100;
+
+for (var i = 0; i < NUMBER; i++) {
+	var star = new zrender.zrImage({
+		scale: [1, 1],
+		zlevel: 1,
+		style: {
+			x: 0,
+			y: 0,
+			image: zImage.style.image
+		}
+	});
+
+	zr.add(star);
+	var animator = star.animate("", true);
+
+	var points = [];
+	var point = [
+		Math.random() * zr.getWidth(),
+		Math.random() * zr.getHeight()
+	];
+	//star.position = point;
+	points.push(point);
+	for (var j = 1; j < 10; j++) {
+		var point = [
+			Math.random() * zr.getWidth(),
+			Math.random() * zr.getHeight()
+		];
+		animator.when(j * 2000, {
+			position: point
+		});
+		points.push(point);
+	}
+	var polyline = new zrender.Polyline({
+		zlevel: 0,
+		shape: {
+			smooth: "spline",
+			points: points
+		},
+		style: {
+			stroke: "#fff",
+			opacity: 0.2,
+			lineWidth: Math.random() * 5
+		},
+		silent: true
+	});
+	// zr.add(polyline);
+
+	animator.start("spline");
+}
+zr.configLayer(1, {
+	// clearColor: "rgba(255, 255, 255, 0.1)"
+	motionBlur: true,
+	lastFrameAlpha: 0.8
+});
+
+//console.profile("render");
+zr.refreshImmediately();
+//console.profileEnd("render");
+</script>
+</head>
+<body>
+<div.zr/>
+</body>
+</html>

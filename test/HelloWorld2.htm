@@ -1,0 +1,112 @@
+<html>
+<head>
+<style>
+div.zr {
+    size: *;
+    background-color: #eee;
+}
+</style>
+<script type="text/tiscript">
+include "../zrender/zrender.tis"
+var zr = zrender.init($(div.zr));
+var w = zr.getWidth();
+var h = zr.getHeight();
+
+var shape = new zrender.Polygon({
+	shape: {
+		points: [[267, 177],[236, 192],[212, 160],[156, 255],[346, 255]]
+	},
+	style: {
+		fill: "rgb(107,142,35)",
+		stroke: "#000"
+	},
+	z: 0,
+	draggable: true
+});
+zr.add(shape);
+
+shape = new zrender.Polygon({
+	shape: {
+		points: [[481, 146],[449, 181],[433, 159],[401, 214],[381, 199],[323, 263],[575, 263]]
+	},
+	style: {
+		fill: "rgb(154,250,50)",
+		stroke: "#000"
+	},
+	z: 1,
+	draggable: true
+});
+zr.add(shape);
+
+shape = new zrender.Arc({
+	shape: {
+		cx: 355,
+		cy: 255,
+		r: 85,
+		startAngle: 0,
+		endAngle: Math.PI,
+		clockwise: false
+	},
+	style: {
+		fill: "rgb(252,124,76)",
+		stroke: "#000"
+	},
+	z: -1,
+	draggable: true
+});
+zr.add(shape);
+
+var sunshine = zrender.Path.extend({
+	type: "sunshine",
+	buildPath: function(ctx,shape) {
+		ctx.moveTo(299, 182)
+		.bezierCurveTo(299, 182,294, 176,285, 178)
+		.bezierCurveTo(276, 179,272, 173,272, 173)
+		.moveTo(354, 156)
+		.bezierCurveTo(354, 156,358, 149,354, 142)
+		.bezierCurveTo(349, 134,354, 127,354, 127)
+		.moveTo(322,164)
+		.bezierCurveTo(322, 164,322, 156,314, 152)
+		.bezierCurveTo(306, 149,305, 141,305, 141)
+		.moveTo(385, 164)
+		.bezierCurveTo(385, 164,392, 161,394, 152)
+		.bezierCurveTo(395, 144,402, 141,402, 142)
+		.moveTo(408,182)
+		.bezierCurveTo(408, 182,416, 184,422, 178)
+		.bezierCurveTo(428, 171,435, 173,435, 173);
+	}
+});
+shape = new sunshine({
+	style: {
+		stroke: "#000"
+	},
+	z: -1,
+	draggable: true
+});
+zr.add(shape);
+
+var river = zrender.Path.extend({
+	type: "river",
+	buildPath: function(ctx,shape) {
+		ctx.moveTo(183, 392)
+		.bezierCurveTo(238, 284,472, 345,356, 303)
+		.bezierCurveTo(237, 261,333, 256,333, 256)
+		.bezierCurveTo(335, 257,241, 261,411, 306)
+		.bezierCurveTo(574, 350,288, 324,296, 392);
+	}
+});
+shape = new river({
+	style: {
+		fill: "rgb(135,206,250)",
+		stroke: "#000"
+	},
+	z: -1,
+	draggable: true
+});
+zr.add(shape);
+</script>
+</head>
+<body>
+<div.zr/>
+</body>
+</html>

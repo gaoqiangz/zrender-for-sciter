@@ -1,0 +1,70 @@
+<html>
+<head>
+<style>
+div.zr {
+    size: *;
+    background-color: #eee;
+}
+</style>
+<script type="text/tiscript">
+include "../zrender/zrender.tis"
+var zr = zrender.init($(div.zr));
+
+zr.add(new zrender.Rect({
+            shape: {
+		x: 0,
+		y: 0,
+		width: zr.getWidth(),
+		height: zr.getHeight()
+	},
+	style: {
+		fill: "red"
+	}
+}));
+
+var countText = new zrender.Text({
+	zlevel: 1,
+	style: {
+		text: 0,
+		x: 10,
+		y: 10,
+		textFont: "40px sans-serif",
+		textFill: "#fff",
+		textStroke: "#000",
+		textStrokeWidth: 2
+	}
+});
+zr.add(countText);
+
+var count = 0;
+
+zr.animation.on("frame", function ()  {
+	if (count > 10000) {
+		return;
+	}
+	for (var i = 0; i < 200; i++) {
+		var circleShape = new zrender.Circle({
+			shape: {
+				r: 5 + Math.random() * 5
+			},
+			style: {
+				fill: "#121",
+				blend: "lighter"
+			},
+			incremental: true,
+			position: [Math.random() * zr.getWidth(), Math.random() * zr.getHeight()]
+		});
+		zr.add(circleShape);
+	}
+
+	countText.style.text += 200;
+	countText.dirty();
+
+	count += 200;
+});
+</script>
+</head>
+<body>
+<div.zr/>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<html>
+<head>
+<style>
+div.zr {
+    size: *;
+    background-color: #eee;
+}
+</style>
+<script type="text/tiscript">
+include "../zrender/zrender.tis"
+var zr = zrender.init($(div.zr));
+
+var points = [];
+for (var i = 0; i < 10; i++) {
+	points.push([Math.random() * 800 + 300, Math.random() * 500 + 100]);
+}
+
+var polyline = new zrender.Polyline({
+	style: {
+		lineDash: [10, 10],
+		stroke: "rgba(220, 20, 60, 0.8)",
+		lineWidth: 10
+	},
+	shape: {
+		points: points,
+		smooth: 0.5
+	}
+});
+
+zr.add(polyline);
+
+polyline.animate("style", true)
+	.when(1000, {
+		lineDashOffset: 20
+	})
+	.start();
+
+var line = new zrender.Line({
+	style: {
+		lineDash: [10, 10],
+		stroke: "rgba(10, 80, 60, 0.8)"
+	},
+	shape: {
+		x1: 100,
+		y1: 100,
+		x2: 500,
+		y2: 500
+	}
+});
+zr.add(line);
+
+line.animate("style", true)
+	.when(1000, {
+		lineDashOffset: -20
+	})
+	.start();
+
+var star = new zrender.Star({
+	style: {
+		lineDash: [20, 10],
+		stroke: "black",
+		fill: null
+	},
+	shape: {
+		n: 5,
+		r: 100,
+		cx: 300,
+		cy: 200
+	}
+});
+zr.add(star);
+
+star.animate("style", true)
+	.when(1000, {
+		lineDashOffset: 30
+	})
+	.start();
+
+var curve = new zrender.BezierCurve({
+	style: {
+		lineDash: [5, 5],
+
+		lineDashOffset: 0
+	},
+	shape: {
+		x1: 100, y1: 100,
+		x2: 100, y2: 500,
+		x3: 500, y3: 100,
+		x4: 500, y4: 500
+	}
+});
+
+zr.add(curve);
+
+curve.animate("style", true)
+	.when(1000, {
+		lineDashOffset: -10
+	})
+	.start();
+</script>
+</head>
+<body>
+<div.zr/>
+</body>
+</html>

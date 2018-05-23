@@ -1,0 +1,55 @@
+<html>
+<head>
+<style>
+div.zr {
+    size: *;
+    background-color: #000;
+}
+</style>
+<script type="text/tiscript">
+include "../zrender/zrender.tis"
+var zr = zrender.init($(div.zr));
+var NUMBER = 500;
+
+for (var i = 0; i < NUMBER; i++) {
+	var circleShape = new zrender.Circle({
+		shape: {
+			cx: 10,
+			cy: 10,
+			r: 5 + Math.random() * 10
+		},
+		style: {
+			// stroke: "red",
+			fill: "white"
+		}
+	});
+
+	zr.add(circleShape);
+	var animator = circleShape.animate("", true);
+
+	var points = [];
+	var point = [
+		Math.random() * zr.getWidth(),
+		Math.random() * zr.getHeight()
+	];
+	//star.position = point;
+	points.push(point);
+	for (var j = 1; j < 10; j++) {
+		var point = [
+			Math.random() * zr.getWidth(),
+			Math.random() * zr.getHeight()
+		];
+		animator.when(j * 2000, {
+			position : point
+		});
+		points.push(point);
+	}
+
+	animator.start("spline");
+}
+</script>
+</head>
+<body>
+<div.zr/>
+</body>
+</html>
