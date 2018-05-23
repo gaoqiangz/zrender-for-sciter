@@ -1,0 +1,294 @@
+//import
+include "../core/env.tis"
+include "../core/event.tis"
+include "../core/util.tis"
+include "../mixin/Eventful.tis"
+include "../core/GestureMgr.tis"
+
+namespace ns_handlerProxy
+{
+
+var TOUCH_CLICK_DELAY = 300;
+
+var mouseHandlerNames = [
+    "click", "dblclick", "mousewheel", "mouseout",
+    "mouseup", "mousedown", "mousemove", "contextmenu"
+];
+
+var touchHandlerNames = [
+    "touchstart", "touchend", "touchmove"
+];
+
+function processGesture(proxy, event, stage) {
+    var GestureMgr = proxy._GestureMgr;
+
+    stage === "start" && GestureMgr.clear();
+
+    var gestureInfo = GestureMgr.recognize(
+        event,
+        proxy.handler.findHover(event.zrX, event.zrY, null).target,
+        proxy.dom
+    );
+
+    stage === "end" && GestureMgr.clear();
+
+    // Do not do any preventDefault here. Upper application do that if necessary.
+    if (gestureInfo) {
+        var type = gestureInfo.type;
+        event.gestureEvent = type;
+
+        proxy.handler.dispatchToElement({target: gestureInfo.target}, type, gestureInfo.event);
+    }
+}
+
+// function onMSGestureChange(proxy, event) {
+//     if (event.translationX || event.translationY) {
+//         // mousemove is carried by MSGesture to reduce the sensitivity.
+//         proxy.handler.dispatchToElement(event.target, "mousemove", event);
+//     }
+//     if (event.scale !== 1) {
+//         event.pinchX = event.offsetX;
+//         event.pinchY = event.offsetY;
+//         event.pinchScale = event.scale;
+//         proxy.handler.dispatchToElement(event.target, "pinch", event);
+//     }
+// }
+
+/**
+ * Prevent mouse event from being dispatched after Touch Events action
+ * @see <https://github.com/deltakosh/handjs/blob/master/src/hand.base.js>
+ * 1. Mobile browsers dispatch mouse events 300ms after touchend.
+ * 2. Chrome for Android dispatch mousedown for long-touch about 650ms
+ * Result: Blocking Mouse Events for 700ms.
+ */
+function setTouchTimer(instance) {
+    instance._touching = true;
+    clearTimeout(instance._touchTimer);
+    instance._touchTimer = setTimeout(function () {
+        instance._touching = false;
+    }, 700);
+}
+
+
+var domHandlers = {
+    /**
+     * Mouse move handler
+     * @inner
+     * @param {Event} event
+     */
+    mousemove: function (event) {
+        event = eventHelper.normalizeEvent(this.dom, event);
+        
+        this.trigger("mousemove", event);
+    },
+
+    /**
+     * Mouse out handler
+     * @inner
+     * @param {Event} event
+     */
+    mouseout: function (event) {
+        event = eventHelper.normalizeEvent(this.dom, event);
+
+        var element = event.toElement || event.relatedTarget;
+        if (element != this.dom) {
+            while (element && element.nodeType != 9) {
+                // 忽略包含在root中的dom引起的mouseOut
+                if (element === this.dom) {
+                    return;
+                }
+
+                element = element.parentNode;
+            }
+        }
+
+        this.trigger("mouseout", event);
+    },
+
+    /**
+     * Touch开始响应函数
+     * @inner
+     * @param {Event} event
+     */
+    touchstart: function (event) {
+        // Default mouse behaviour should not be disabled here.
+        // For example, page may needs to be slided.
+        event = eventHelper.normalizeEvent(this.dom, event);
+
+        // Mark touch, which is useful in distinguish touch and
+        // mouse event in upper applicatoin.
+        event.zrByTouch = true;
+
+        this._lastTouchMoment = new Date();
+
+        processGesture(this, event, "start");
+
+        // In touch device, trigger `mousemove`(`mouseover`) should
+        // be triggered, and must before `mousedown` triggered.
+        domHandlers.mousemove.call(this, event);
+
+        domHandlers.mousedown.call(this, event);
+
+        setTouchTimer(this);
+    },
+
+    /**
+     * Touch移动响应函数
+     * @inner
+     * @param {Event} event
+     */
+    touchmove: function (event) {
+
+        event = eventHelper.normalizeEvent(this.dom, event);
+
+        // Mark touch, which is useful in distinguish touch and
+        // mouse event in upper applicatoin.
+        event.zrByTouch = true;
+
+        processGesture(this, event, "change");
+
+        // Mouse move should always be triggered no matter whether
+        // there is gestrue event, because mouse move and pinch may
+        // be used at the same time.
+        domHandlers.mousemove.call(this, event);
+
+        setTouchTimer(this);
+    },
+
+    /**
+     * Touch结束响应函数
+     * @inner
+     * @param {Event} event
+     */
+    touchend: function (event) {
+
+        event = eventHelper.normalizeEvent(this.dom, event);
+
+        // Mark touch, which is useful in distinguish touch and
+        // mouse event in upper applicatoin.
+        event.zrByTouch = true;
+
+        processGesture(this, event, "end");
+
+        domHandlers.mouseup.call(this, event);
+
+        // Do not trigger `mouseout` here, in spite of `mousemove`(`mouseover`) is
+        // triggered in `touchstart`. This seems to be illogical, but by this mechanism,
+        // we can conveniently implement "hover style" in both PC and touch device just
+        // by listening to `mouseover` to add "hover style" and listening to `mouseout`
+        // to remove "hover style" on an element, without any additional code for
+        // compatibility. (`mouseout` will not be triggered in `touchend`, so "hover
+        // style" will remain for user view)
+
+        // click event should always be triggered no matter whether
+        // there is gestrue event. System click can not be prevented.
+        if (+new Date() - this._lastTouchMoment < TOUCH_CLICK_DELAY) {
+            domHandlers.click.call(this, event);
+        }
+
+        setTouchTimer(this);
+    }
+};
+
+/**
+ * 为控制类实例初始化dom 事件处理函数
+ *
+ * @inner
+ * @param {module:zrender/Handler} instance 控制类实例
+ */
+function initDomHandler(instance) {
+    function makeMouseHandler(fn, instance) {
+        return function (arguments..) {
+            if (instance._touching) {
+                return;
+            }
+            return fn.apply(instance, arguments);
+        };
+    }
+
+    util.each(touchHandlerNames, function (name) {
+        instance._handlers[name] = util.bind(domHandlers[name], instance);
+    });
+
+    util.each(mouseHandlerNames, function (name) {
+        instance._handlers[name] = makeMouseHandler(domHandlers[name], instance);
+    });
+}
+
+class HandlerDomProxy
+{
+    function this(dom) {
+        Eventful.this.call(this);
+
+        this.dom = dom;
+
+        /**
+        * @private
+        * @type {boolean}
+        */
+        this._touching = false;
+
+        /**
+        * @private
+        * @type {number}
+        */
+        this._touchTimer;
+
+        /**
+        * @private
+        * @type {module:zrender/core/GestureMgr}
+        */
+        this._GestureMgr = new GestureMgr();
+
+        this._handlers = {};
+
+        initDomHandler(this);
+
+        function mountHandlers(handlerNames, instance) {
+            util.each(handlerNames, function (name) {
+                dom.addEventListener(name, instance._handlers[name]);
+            }, instance);
+        }
+
+        if (env.touchEventsSupported) {
+            mountHandlers(touchHandlerNames, this);
+            // Handler of "mouseout" event is needed in touch mode, which will be mounted below.
+            // addEventListener(root, "mouseout", this._mouseoutHandler);
+        }
+
+        // 1. Considering some devices that both enable touch and mouse event (like on MS Surface
+        // and lenovo X240, @see #2350), we make mouse event be always listened, otherwise
+        // mouse event can not be handle in those devices.
+        // 2. On MS Surface, Chrome will trigger both touch event and mouse event. How to prevent
+        // mouseevent after touch event triggered, see `setTouchTimer`.
+        mountHandlers(mouseHandlerNames, this);
+    }
+
+    function dispose() {
+        var handlerNames = mouseHandlerNames.concat(touchHandlerNames);
+        for (var name in handlerNames) {
+            this.dom.removeEventListener(name, this._handlers[name]);
+        }
+    }
+
+    function setCursor(cursorStyle) {
+        this.dom.style["cursor"] = cursorStyle || "default";
+    }
+} //class HandlerDomProxy
+
+var __dummy = (function() {
+    // Common handlers
+    util.each(["click", "mousedown", "mouseup", "mousewheel", "dblclick", "contextmenu"], function (name) {
+        domHandlers[name] = function (event) {
+            event = eventHelper.normalizeEvent(this.dom, event);
+            this.trigger(name, event);
+        };
+    });
+
+    util.mixin(HandlerDomProxy, Eventful);
+})();
+
+} //namespace ns_handlerProxy
+
+//export
+var HandlerProxy = ns_handlerProxy.HandlerDomProxy;

@@ -1,0 +1,882 @@
+/*
+    js函数适配层
+*/
+function LOG(v) {
+    stdout.printf("%V\n", v);
+}
+class console
+{
+    function log(args..) {
+        stdout.println.apply(stdout,args);
+    }
+    function error(args..) {
+        stderr.println.apply(stderr,args);
+    }
+}
+//判断值是否有效
+function isValid(val) {
+    return val !== null && val !== undefined;
+}
+
+/* Math */
+//添加min函数
+function Math.min(a,b) {
+    return a < b ? a : b;
+};
+//添加max函数
+function Math.max(a,b) {
+    return a > b ? a : b;
+};
+//添加mod函数
+//*因为tis里Float类型是不能直接使用'%'运算符的
+function Math.mod(a,b) {
+	if(typeof a === #integer && typeof b === #integer)
+		return a % b;
+	return a - b * (a / b).toInteger();
+};
+
+//Infinity值
+var Infinity = Float.MAX + 1.0;
+
+//Number.MAX_VALUE
+class Number
+{
+    const MAX_VALUE = Float.MAX;
+}
+//判读是否为数值型
+//tis中没有#number类型
+function isNumber(value) {
+    return typeof value === #integer || typeof value === #float;
+}
+//添加isNaN函数
+function isNaN(value) {
+    if(typeof value === #integer)
+        return value.toFloat().isNaN();
+    if(typeof value === #float)
+        return value.isNaN();
+    return true;
+}
+//解析数值
+function parseInt(str,radix = 0) {
+    return str.toInteger(0,radix);
+}
+function parseFloat(str) {
+    return str.toFloat(0);
+}
+
+//setTimeout
+function setTimeout(func,ms) {
+    var id = {_running:true};
+    var ticks = System.ticks + ms;
+    function poll() {
+        if(!id._running) return;
+        if(System.ticks >= ticks) {
+            func();
+            return;
+        }
+        this.post(poll);
+    }
+    poll.call(self);
+    return id;
+}
+//clearTimeout
+function clearTimeout(id) {
+    if(typeof(id) === #object && id._running === true)
+        id._running = false;
+}
+//setInterval
+function setInterval(func,ms) {
+    var id = {_running:true};
+    var ticks = System.ticks + ms;
+    function poll() {
+        if(!id._running) return;
+        if(System.ticks >= ticks) {
+            if(func() === false) return;
+            ticks = System.ticks + ms;
+        }
+        this.post(poll);
+    }
+    poll.call(self);
+    return id;
+}
+//clearInterval
+function clearInterval(id) {
+    if(typeof(id) === #object && id._running === true)
+        id._running = false;
+}
+
+/* Array */
+//添加forEach函数
+function Array.forEach(cb,thisArg = cb) {
+    for(var i in this.length) {
+        cb.call(thisArg,this[i],i,this);
+    }
+};
+
+/* Date */
+//添加now函数
+function Date.now() {
+    return new Date().valueOf();
+}
+//添加getTime函数
+function Date.getTime() {
+    return this.valueOf();
+};
+
+/* Object */
+//添加hasOwnProperty函数
+function Object.hasOwnProperty(name) {
+    return this.exists(name);
+};
+
+/* document */
+//添加document全局变量
+var document = self;
+//添加createElement函数
+function document.createElement(name) {
+    if(!this.head) {
+      this.head = this.$(head);
+      if(!this.head)
+        this.append(this.head = new Element("head"));
+    }
+    var el = new Element(name);
+    this.head.append(el);
+    return el;
+};
+
+/* Element */
+//添加addEventListener函数
+function Element.addEventListener(name,handler) {
+    if(name === "mouseout")
+        name = "mouseleave";
+    else if(name === "mouseover")
+        name = "mouseenter";
+    return this.on(name,handler);
+};
+//添加removeEventListener函数
+function Element.removeEventListener(name,handler) {
+    //return this.off(name);
+    return this.off(handler);
+};
+//添加getContext函数
+function Element.getContext(contextType) {
+    if(contextType != "2d")
+        throw String.$([{contextType}] are not supported);
+    if(!this._cav_ctx)
+        this._cav_ctx = new CanvasRenderingContext2D(this);
+    return this._cav_ctx;
+};
+//添加width属性
+property Element.width(val){
+    get {
+        return this.box(#width).toFloat();
+    }
+    set {
+        this.style["width"] = val.toInteger().toString() + "px";
+        return val;
+    }
+};
+//添加height属性
+property Element.height(val){
+    get {
+        return this.box(#height).toFloat();
+    }
+    set {
+        this.style["height"] = val.toInteger().toString() + "px";
+        return val;
+    }
+};
+
+/* Event */
+//转换type属性
+const MOUSE_EVENT_TYPES = {};
+MOUSE_EVENT_TYPES[Event.MOUSE_DOWN] = "mousedown";
+MOUSE_EVENT_TYPES[Event.MOUSE_UP] = "mouseup";
+MOUSE_EVENT_TYPES[Event.MOUSE_MOVE] = "mousemove";
+MOUSE_EVENT_TYPES[Event.MOUSE_ENTER] = "mouseover";
+MOUSE_EVENT_TYPES[Event.MOUSE_LEAVE] = "mouseout";
+MOUSE_EVENT_TYPES[Event.MOUSE_DCLICK] = "dblclick";
+MOUSE_EVENT_TYPES[Event.MOUSE_WHEEL] = "mousewheel";
+const LOG_EVENT_TYPES = {};
+LOG_EVENT_TYPES[Event.CONTEXT_BUTTON_CLICK] = "click";
+LOG_EVENT_TYPES[Event.CONTEXT_MENU_REQUEST] = "contextmenu";
+
+Event.typeName = property(val) {
+    get
+    {
+        switch(this.group)
+        {
+        case #onMouse: return MOUSE_EVENT_TYPES[this.type];
+        case #onControlEvent: return LOG_EVENT_TYPES[this.type];
+        }
+        return undefined;
+    }
+};
+
+/* CanvasRenderingContext2D */
+class CanvasRenderingContext2D
+{
+    //constructor
+    function this(el) {
+        this._element = el;
+        this._states = null;
+        this._xform = null;
+        this._path = null;
+        this._clip = null;
+        //绘图上下文
+        //*仅在绘图事件的回调期内有效
+        this._gfx = null;
+    }
+    
+    //开启帧缓存(boolean)
+    //*实现增量刷新和动态模糊特效
+    property frameCached(v) {
+        set {
+            this._frameCached = v;
+            if(!v)
+            {
+                if(this._frame)
+                {
+                    this._frame.destroy();
+                    this._frame = null;
+                }
+                if(this._prevFrame)
+                {
+                    this._prevFrame.destroy();
+                    this._prevFrame = null;
+                }
+            }
+            return v;
+        }
+    }
+
+    //动态模糊的alpha值(float[0.0-1.0]/integer[0-255])
+    //*大于0时开启动态模糊特效
+    //*必须开启frameCached
+    property motionBlur(v) {
+        set {
+            this._motionBlur = v;
+            if(v <= 0)
+            {
+                if(this._prevFrame)
+                {
+                    this._prevFrame.destroy();
+                    this._prevFrame = null;
+                }
+            }
+            return v;
+        }
+    }
+
+    //注册绘图事件回调
+    //callback:回调函数
+    //context:回调上下文[this]
+    //*回调函数的参数:
+    //*ctx:此Canvas对象
+    //*erased:已擦除画布
+    function onPaint(callback,context = this) {
+        if(!callback) return false;
+        var me = this;
+        function __clear(gfx) {
+            var oldFill = gfx.fillColor;
+            if(typeof me._clearColor === #object)
+            {
+                me._clearColor._apply(gfx,#fill);
+            }
+            else
+            {
+                if(typeof me._clearColor === #string)
+                    gfx.fillColor(Color.parse(me._clearColor));
+                else
+                    gfx.fillColor(me._clearColor);
+            }
+            var (w,h) = this super.box(#dimension);
+            gfx.rectangle(0,0,w,h);
+            gfx.fillColor = oldFill;
+        }
+        function __paintFrame(gfx) {
+            me._oldFrame && me._motionBlur <= 0 && gfx.drawImage(me._oldFrame,0,0);
+            me._clearColor && __clear(gfx);
+            if(me._motionBlur > 0 && me._prevFrame)
+                gfx.blendImage(me._prevFrame,0,0,me._motionBlur);
+            me._gfx = gfx;
+            callback.call(context,me,me._motionBlur > 0 ? !me._prevFrame : false);
+            me._gfx = null;
+        }
+        this._element.paintContent = function(gfx) {
+            if(me._frameCached)
+            {
+                var (w,h) = this.box(#dimension);
+                var frame = me._frame;
+                if(frame && frame.width === w && frame.height === h)
+                {
+                    frame.update(__paintFrame,me._motionBlur > 0 ? rgba(0,0,0,0) : undefined);
+                }
+                else
+                {
+                    me._oldFrame = frame;
+                    frame = new Image(w,h,__paintFrame);
+                    if(me._oldFrame) me._oldFrame.destroy();
+                    me._oldFrame = null;
+                }
+                gfx.drawImage(frame,0,0);
+                if(me._motionBlur > 0)
+                {
+                    me._frame = me._prevFrame;
+                    me._prevFrame = frame;
+                }
+                else
+                {
+                    me._frame = frame;
+                }
+            }
+            else
+            {
+                me._gfx = gfx;
+                me._clearColor && __clear(gfx);
+                callback.call(context,me,true);
+                me._gfx = null;
+            }
+            me._clearColor = null;
+        };
+        return true;
+    }
+    //界面刷新
+    //*erase:擦除画布
+    //*clearColor:擦除画布的颜色(erase=true)
+    //*eraseAll:同时擦除动态模糊图层(erase=true)
+    function refresh(erase = true,clearColor = undefined,eraseAll = false) {
+        if(erase && this._frameCached)
+        {
+            if(this._frame && this._motionBlur <= 0)
+            {
+                this._frame.destroy();
+                this._frame = null;
+            }
+            if(this._prevFrame && eraseAll)
+            {
+                this._prevFrame.destroy();
+                this._prevFrame = null;
+            }
+        }
+        this._clearColor = erase ? clearColor : null;
+        return this._element.refresh();
+    }
+
+    /* Canvas接口适配 */
+    var fillStyle = "#000";
+    var strokeStyle = "#000";
+    var lineWidth = 1.0;
+    var lineJoin = "miter";
+    var lineCap = "butt";
+    var lineDash = null;
+    var lineDashOffset = null;
+    var font = "10px sans-serif";
+    var textAlign = "left";
+    var textBaseline = "top";
+
+    property width(val) {
+        get {
+            var (w,h) = this._element.box(#dimension);
+            return w;
+        }
+    }
+    property height(val) {
+        get {
+            var (w,h) = this._element.box(#dimension);
+            return h;
+        }
+    }
+    function createLinearGradient(x1, y1, x2, y2) {
+        return new CanvasLinearGradient(x1,y1,x2,y2);
+    }
+    function createRadialGradient(x1, y1, r1, x2, y2, r2) {
+        return new CanvasRadialGradient(x1,y1,r1,x2,y2,r2);
+    }
+    function setLineDash(segments) {
+        assert typeof(segments) === #array;
+        this.lineDash = segments;
+    }
+    function save() {
+        if(!this._states) this._states = [];
+        var state = {
+            fillStyle: this.fillStyle && typeof this.fillStyle === #object ? 
+                            this.fillStyle.clone(true) : this.fillStyle,
+            strokeStyle: this.strokeStyle && typeof this.strokeStyle === #object ? 
+                            this.strokeStyle.clone(true) : this.strokeStyle,
+            lineWidth: this.lineWidth,
+            lineJoin: this.lineJoin,
+            lineCap: this.lineCap,
+            lineDash: this.lineDash && typeof this.lineDash === #array ?
+                        this.lineDash.clone() : this.lineDash,
+            lineDashOffset: this.lineDashOffset,
+            font: this.font,
+            textAlign: this.textAlign,
+            textBaseline: this.textBaseline,
+            shadowBlur: this.shadowBlur,
+            shadowColor: this.shadowColor,
+            shadowOffsetX: this.shadowOffsetX,
+            shadowOffsetY: this.shadowOffsetY,
+            clip: this._clip ? this._clip.clone() : null,
+            xform: this._xform ? this._xform.clone() : null
+        };
+        this._states.push(state);
+    }
+    function restore() {
+        if(!this._states || this._states.length == 0) return;
+        var state = this._states.pop();
+        this.fillStyle = state.fillStyle;
+        this.strokeStyle = state.strokeStyle;
+        this.lineWidth = state.lineWidth;
+        this.lineJoin = state.lineJoin;
+        this.lineCap = state.lineCap;
+        this.lineDash = state.lineDash;
+        this.lineDashOffset = state.lineDashOffset;
+        this.font = state.font;
+        this.textAlign = state.textAlign;
+        this.textBaseline = state.textBaseline;
+        this.shadowBlur = state.shadowBlur,
+        this.shadowColor = state.shadowColor,
+        this.shadowOffsetX = state.shadowOffsetX,
+        this.shadowOffsetY = state.shadowOffsetY,
+        this._clip = state.clip;
+        this._xform = state.xform;
+    }
+    //transformation
+    function setTransform(m11, m12, m21, m22, dx, dy) {
+        if(m11 === 1 && m12 === 0 && m21 === 0 &&
+            m22 === 1 && dx === 0 && dy === 0)
+        {
+            this._xform = null;
+            return;
+        }
+        this._xform = [m11, m12, m21, m22, dx, dy];
+    }
+    function resetTransform() {
+        this._xform = null;
+    }
+    function scale(x, y) {
+        if(this._xform)
+        {
+            this._xform[0] *= x;
+            this._xform[1] *= x;
+            this._xform[2] *= y;
+            this._xform[3] *= y;
+        }
+        else
+        {
+            this._xform = [x, 0, 0, y, 0, 0];
+        }
+    }
+    function translate(x, y) {
+        if(this._xform)
+        {
+            this._xform[4] += x * this._xform[0] + y * this._xform[2];
+            this._xform[5] += x * this._xform[1] + y * this._xform[3];
+        }
+        else
+        {
+            this._xform = [1, 0, 0, 1, x, y];
+        }
+    }
+    function rotate(angle) {
+        if(!this._xform) this._xform = [1, 0, 0, 1, 0, 0];
+        var sa = Math.sin(angle);
+        var ca = Math.cos(angle);
+        var m11 = ca * this._xform[0] + sa * this._xform[2];
+        var m12 = ca * this._xform[1] + sa * this._xform[3];
+        var m21 = -sa * this._xform[0] + ca * this._xform[2];
+        var m22 = -sa * this._xform[1] + ca * this._xform[3];
+        this._xform[0] = m11;
+        this._xform[1] = m12;
+        this._xform[2] = m21;
+        this._xform[3] = m22;
+    }
+    //path
+    function beginPath() {
+        this._path = new Path2D();
+        return this;
+    }
+    function moveTo(x,y) {
+        this._path && this._path.moveTo(x,y);
+        return this;
+    }
+    function lineTo(x,y) {
+        this._path && this._path.lineTo(x,y);
+        return this;
+    }
+    function rect(x, y, width, height) {
+        this._path && this._path.rect(x, y, width, height);
+        return this;
+    }
+    function arc(x, y, radius, startAngle, endAngle, anticlockwise = false) {
+        this._path && this._path.rect(x, y, radius, startAngle, endAngle, anticlockwise);
+        return this;
+    }
+    function arcTo(x1, y1, x2, y2, radius) {
+        this._path && this._path.arcTo(x1, y1, x2, y2, radius);
+        return this;
+    }
+    function bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y) {
+        this._path && this._path.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y);
+        return this;
+    }
+    function quadraticCurveTo(cpx, cpy, x, y) {
+        this._path && this._path.quadraticCurveTo(cpx, cpy, x, y);
+        return this;
+    }
+    function closePath() {
+        this._path && this._path.closePath();
+        return this;
+    }
+    function clip(fillRule = "nonzero") {
+        //if(!this._path) return;
+        this._clip = this._path;
+        this._path = null;
+        if(this._clip && fillRule === "evenodd")
+            this._clip.fillEvenOdd(true);
+        return this;
+    }
+    //paint
+    const LINE_JOIN = {"miter":Graphics.JOIN_MITER,"round":Graphics.JOIN_ROUND,"bevel":Graphics.JOIN_BEVEL};
+    const LINE_CAP = {"butt":Graphics.CAP_BUTT,"round":Graphics.CAP_ROUND,"square":Graphics.CAP_SQUARE};
+    const TEXT_ALIGN = {"left":7,"right":9,"center":8};
+    const TEXT_VALIGN = {"top":Graphics.ALIGN_START,"bottom":Graphics.ALIGN_END,"middle":Graphics.ALIGN_CENTER};
+    function _paintBefore(type) {
+        this._gfx.save();
+        if(this._xform)
+            this._gfx.transform(this._xform[0],this._xform[1],this._xform[2],this._xform[3],this._xform[4],this._xform[5]);
+        if(this._clip)
+            this._gfx.pushLayer(this._clip._path);
+        if(type === #fill || type === #draw)
+        {
+            if(this.fillStyle)
+            {
+                if(typeof this.fillStyle === #object)
+                {
+                    this.fillStyle._apply(this._gfx,#fill);
+                }
+                else
+                {
+                    if(typeof this.fillStyle === #string)
+                        this._gfx.fillColor(Color.parse(this.fillStyle));
+                    else
+                        this._gfx.fillColor(this.fillStyle);
+                }
+            }
+        }
+        if(type === #stroke || type === #draw)
+        {
+            if(this.strokeStyle)
+            {
+                if(typeof this.strokeStyle === #object)
+                {
+                    this.strokeStyle._apply(this._gfx,#stroke);
+                }
+                else
+                {
+                    if(typeof this.strokeStyle === #string)
+                        this._gfx.strokeColor(Color.parse(this.strokeStyle));
+                    else
+                        this._gfx.strokeColor(this.strokeStyle);
+                }
+            }
+            if(this.lineWidth)
+                this._gfx.strokeWidth(this.lineWidth);
+            if(this.lineJoin)
+                this._gfx.lineJoin = LINE_JOIN[this.lineJoin];
+            if(this.lineCap)
+                this._gfx.lineCap = LINE_CAP[this.lineCap];
+            if(this.lineDash && this.lineDash.length > 0)
+                this._gfx.strokeDash(this.lineDash,this.lineDashOffset);
+        }
+    }
+    function _paintAfter(type) {
+        if(this._clip)
+            this._gfx.popLayer();
+        this._gfx.restore();
+    }
+    function _hasShadow() {
+        return (this.shadowBlur && this.shadowColor && this.shadowColor !== "transparent");
+    }
+    function _paintShadowBefore() {
+        var spread = this.shadowBlur;
+        if(typeof spread !== #length)
+            spread = px(spread);
+        var clrShadow = this.shadowColor;
+        if(typeof clrShadow !== #color)
+            clrShadow = Color.parse(this.shadowColor);
+        var offsetX = this.shadowOffsetX;
+        if(typeof offsetX !== #length)
+            offsetX = px(offsetX || 0);
+        var offsetY = this.shadowOffsetY;
+        if(typeof offsetY !== #length)
+            offsetY = px(offsetY || 0);
+        this._gfx.pushLayer(#inner-box,[#drop-shadow: offsetX,offsetY,spread,clrShadow]);
+    }
+    function _paintShadowAfter() {
+        this._gfx.popLayer();
+    }
+    function fill(path = undefined) {
+        return this.draw(path,#fill);
+    }
+    function stroke(path = undefined) {
+        return this.draw(path,#stroke);
+    }
+    function draw(path = undefined,type = #draw) {
+        assert this._gfx:"invalid gfx";
+        path = path ? path : this._path;
+        assert path && path._path:"invalid path";
+        this._paintBefore(type);
+        if(this._hasShadow())
+        {
+            this._paintShadowBefore();
+            this._gfx.drawPath(path._path);
+            this._paintShadowAfter();
+        }
+        this._gfx.drawPath(path._path);
+        this._paintAfter(type);
+        return this;
+    }
+    function _createText(text) {
+        var txt = new Graphics.Text(text);
+        if(this.font)
+        {
+            var font = this.font.split(" ");
+            var len = font.length;
+            if(len > 0)
+                txt.font(font[len - 1],len - 2 >= 0 ? Length.parse(font[len - 2]).toFloat(#px) : 12,len - 3 >= 0 ? font[len - 3] === "bolder" : false,len - 4 >= 0 ? font[len - 4] === "italic" : false);
+        }
+        txt.alignment(Graphics.ALIGN_START,TEXT_VALIGN[this.textBaseline]);
+        return txt;
+    }
+    function measureText(text) {
+        var mtx = {};
+        var txt = this._createText(text);
+        var (maxWidth,minWidth,boxWidth) = txt.width();
+        var (textHeight,boxHeight) = txt.height();
+        mtx.width = maxWidth;
+        mtx.height = textHeight;
+        txt = null;
+        return mtx;
+    }
+    function fillText(text, x, y) {
+        return this.drawText(text,x,y,#fill);
+    }
+    function strokeText(text, x, y) {
+        return this.drawText(text,x,y,#stroke);
+    }
+    function drawText(text, x, y,type = #draw) {
+        assert this._gfx:"invalid gfx";
+        var txt = this._createText(text);
+        this._paintBefore(type);
+        if(this._hasShadow())
+        {
+            this._paintShadowBefore();
+            this._gfx.drawText(txt,x,y,TEXT_ALIGN[this.textAlign]);
+            this._paintShadowAfter();
+        }
+        this._gfx.drawText(txt,x,y,TEXT_ALIGN[this.textAlign]);
+        this._paintAfter(type);
+        txt = null;
+        return this;
+    }
+    function drawImage(image, args..) {
+        assert this._gfx:"invalid gfx";
+        if(!image) return this;
+        var img = image;
+        if(image instanceof Element)
+        {
+            var (w,h) = image.box(#dimension);
+            img = new Image(w,h,image);
+        }
+        this._paintBefore(#drawImage);
+        switch(args.length)
+        {
+        case 2:
+            {
+                this._gfx.drawImage(img,args[0]/*dx*/,args[1]/*dy*/);
+                break;
+            }
+        case 4:
+            {
+                if(args[2] && args[3])
+                    this._gfx.drawImage(img,args[0]/*dx*/,args[1]/*dy*/,args[2]/*dWidth*/,args[3]/*dHeight*/);
+                else
+                    this._gfx.drawImage(img,args[0]/*dx*/,args[1]/*dy*/);
+                break;
+            }
+        case 8:
+            {
+                this._gfx.drawImage(img,args[4]/*dx*/,args[5]/*dy*/,args[6]/*dWidth*/,args[7]/*dHeight*/,args[0]/*sx*/,args[1]/*sy*/,args[2]/*sWidth*/,args[3]/*sHeight*/);
+                break;
+            }
+        }
+        this._paintAfter(#drawImage);
+        if(img !== image)
+            img.destroy();
+        return this;
+    }
+    function clearRect(x, y, width, height) {
+        //stdout.println("clear");
+    }
+} //class CanvasRenderingContext2D
+
+/* Path2D*/
+class Path2D
+{
+    function this(path = undefined) {
+        this._path = path ? path : new Graphics.Path();
+    }
+    function moveTo(x,y) {
+        this._path && this._path.moveTo(x,y);
+        return this;
+    }
+    function lineTo(x,y) {
+        this._path && this._path.lineTo(x,y);
+        return this;
+    }
+    function rect(x, y, width, height) {
+        if(!this._path) return this;
+        this._path.moveTo(x, y);
+        this._path.lineTo(x + width, y);
+        this._path.lineTo(x + width, y + height);
+        this._path.lineTo(x, y + height);
+        this._path.lineTo(x, y);
+        return this;
+    }
+    function arc(x, y, radius, startAngle, endAngle, anticlockwise = false) {
+        if(!this._path) return this;
+        if(radius == 0 || startAngle == endAngle) return this;
+        const PI2 = Math.PI * 2;
+        startAngle = Math.mod(startAngle,PI2);
+        endAngle = Math.mod(endAngle,PI2);
+        if(anticlockwise)
+        {
+            if(endAngle >= startAngle) endAngle -= PI2;
+        }
+        else
+        {
+            if(endAngle <= startAngle) endAngle += PI2;
+        }
+        var angleSwipe = endAngle - startAngle;
+        this._path.arc(x,y,radius,startAngle,angleSwipe);
+        return this;
+    }
+    function arcTo(x1, y1, x2, y2, radius) {
+        this._path && this._path.arcTo(x1, y1, x2, y2, radius);
+        return this;
+    }
+    function bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y) {
+        this._path && this._path.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y);
+        return this;
+    }
+    function quadraticCurveTo(cpx, cpy, x, y) {
+        this._path && this._path.quadraticCurveTo(cpx, cpy, x, y);
+        return this;
+    }
+    function closePath() {
+        this._path && this._path.close();
+        return this;
+    }
+    function clone() {
+        if(!this._path) return new Path2D();
+        var path = new Graphics.Path();
+        return new Path2D(this._path.combine(#union,path));
+    }
+    function addPath(path) {
+        if(!this._path || !path || !path._path) return this;
+        this._path = this._path.combine(#union,path._path);
+        return this;
+    }
+    function fillEvenOdd(even) {
+        this._path && this._path.fillEvenOdd(even);
+        return this;
+    }
+    function isPointInside(x,y) {
+        if(this._path) return this._path.isPointInside(x,y);
+        return false;
+    }
+    function bounds() {
+        if(this._path) return this._path.bounds();
+        return (0,0,0,0);
+    }
+} //class Path2D
+
+/* CanvasGradient  */
+class CanvasGradient
+{
+    var offsets = null;
+    var colors = null;
+    var clrReverse = false;
+    function this(clrReverse = false) {
+        this.clrReverse = clrReverse;
+    }
+    function addColorStop(offset, color) {
+        if(!this.offsets)
+        {
+            this.offsets = [];
+            this.colors = [];
+        }
+        this.offsets.push(offset.toFloat());
+        if(typeof color === #string)
+            color = Color.parse(color);
+        if(clrReverse)
+            this.colors.unshift(color);
+        else
+            this.colors.push(color);
+    }
+} //class CanvasGradient
+
+/* CanvasLinearGradient  */
+class CanvasLinearGradient : CanvasGradient
+{
+    var x1 = 0;
+    var y1 = 0;
+    var x2 = 0;
+    var y2 = 0;
+    function this(x1, y1, x2, y2) {
+        super();
+        this.x1 = x1;
+        this.y1 = y1;
+        this.x2 = x2;
+        this.y2 = y2;
+    }
+    function _apply(gfx,type) {
+        if(!this.offsets) return;
+        if(type === #fill)
+            gfx.fillLinearGradient(this.x1,this.y1,this.x2,this.y2,this.colors,this.offsets);
+        else if(type === #stroke)
+            gfx.strokeLinearGradient(this.x1,this.y1,this.x2,this.y2,this.colors,this.offsets);
+    }
+} //class CanvasLinearGradient
+
+/* CanvasRadialGradient  */
+class CanvasRadialGradient : CanvasGradient
+{
+    var x1 = 0;
+    var y1 = 0;
+    var r1 = 0;
+    var x2 = 0;
+    var y2 = 0;
+    var r2 = 0;
+    function this(x1, y1, r1, x2, y2, r2) {
+        //反向的颜色顺序
+        //*fillRadialGradient/lineRadialGradient颜色顺序与浏览器相反。。。
+        super(true);
+        this.x1 = x1;
+        this.y1 = y1;
+        this.r1 = r1;
+        this.x2 = x2;
+        this.y2 = y2;
+        this.r2 = r2;
+    }
+    function _apply(gfx,type) {
+        if(!this.offsets) return;
+        //*目前只支持一个圆心
+        if(type === #fill)
+            gfx.fillRadialGradient(this.x1,this.y1,this.r1 || this.r2,this.colors,this.offsets);
+        else if(type === #stroke)
+            gfx.lineRadialGradient(this.x1,this.y1,this.r1 || this.r2,this.colors,this.offsets);
+    }
+} //class CanvasRadialGradient

@@ -1,0 +1,40 @@
+/**
+ * 正多边形
+ * @module zrender/shape/Isogon
+ */
+//import
+include "../Path.tis"
+
+var Isogon =  Path.extend({
+
+    type: "isogon",
+
+    shape: {
+        x: 0.0, y: 0.0,
+        r: 0.0, n: 0.0
+    },
+
+    buildPath: function (ctx, shape) {
+        var n = shape.n;
+        if (!n || n < 2) {
+            return;
+        }
+
+        var x = shape.x;
+        var y = shape.y;
+        var r = shape.r;
+
+        var dStep = 2.0 * Math.PI / n;
+        var deg = -Math.PI / 2.0;
+
+        ctx.moveTo(x + r * Math.cos(deg), y + r * Math.sin(deg));
+        for (var i in (n - 1).toInteger()) {
+            deg += dStep;
+            ctx.lineTo(x + r * Math.cos(deg), y + r * Math.sin(deg));
+        }
+
+        ctx.closePath();
+
+        return;
+    }
+});

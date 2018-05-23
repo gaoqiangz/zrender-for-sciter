@@ -1,0 +1,375 @@
+//import
+include "../core/LRU.tis"
+
+namespace color
+{
+
+function clampCssByte(i) {  // Clamp to integer 0 .. 255.
+    i = Math.round(i);  // Seems to be what Chrome does (vs truncation).
+    return i < 0 ? 0 : i > 255 ? 255 : i;
+}
+
+function clampCssAngle(i) {  // Clamp to integer 0 .. 360.
+    i = Math.round(i);  // Seems to be what Chrome does (vs truncation).
+    return i < 0 ? 0 : i > 360 ? 360 : i;
+}
+
+function clampCssFloat(f) {  // Clamp to float 0.0 .. 1.0.
+    return f < 0 ? 0 : f > 1 ? 1 : f;
+}
+
+function parseCssInt(str) {  // int or percentage.
+    if (str.length && str.charAt(str.length - 1) === "%") {
+        return clampCssByte(parseFloat(str) / 100 * 255);
+    }
+    return clampCssByte(parseInt(str, 10));
+}
+
+function parseCssFloat(str) {  // float or percentage.
+    if (str.length && str.charAt(str.length - 1) === "%") {
+        return clampCssFloat(parseFloat(str) / 100);
+    }
+    return clampCssFloat(parseFloat(str));
+}
+
+function cssHueToRgb(m1, m2, h) {
+    if (h < 0) {
+        h += 1;
+    }
+    else if (h > 1) {
+        h -= 1;
+    }
+
+    if (h * 6 < 1) {
+        return m1 + (m2 - m1) * h * 6;
+    }
+    if (h * 2 < 1) {
+        return m2;
+    }
+    if (h * 3 < 2) {
+        return m1 + (m2 - m1) * (2/3 - h) * 6;
+    }
+    return m1;
+}
+
+function lerpNumber(a, b, p) {
+    return a + (b - a) * p;
+}
+
+function setRgba(out, r, g, b, a) {
+    out[0] = r; out[1] = g; out[2] = b; out[3] = a;
+    return out;
+}
+function copyRgba(out, a) {
+    out[0] = a[0]; out[1] = a[1]; out[2] = a[2]; out[3] = a[3];
+    return out;
+}
+
+var colorCache = new LRU(20);
+var lastRemovedArr = null;
+
+function putToCache(colorStr, rgbaArr) {
+    // Reuse removed array
+    if (lastRemovedArr) {
+        copyRgba(lastRemovedArr, rgbaArr);
+    }
+    lastRemovedArr = colorCache.put(colorStr, lastRemovedArr || (rgbaArr.slice(0)));
+}
+
+/**
+ * @param {string} colorStr
+ * @param {Array.<number>} out
+ * @return {Array.<number>}
+ * @memberOf module:zrender/util/color
+ */
+function parse(colorStr, rgbaArr = undefined) {
+    if (!colorStr) {
+        return;
+    }
+    rgbaArr = rgbaArr || [];
+
+    var cached = colorCache.get(colorStr);
+    if (cached) {
+        return copyRgba(rgbaArr, cached);
+    }
+
+    var clr = Color.parse(colorStr);
+    rgbaArr[0] = clr.r;
+    rgbaArr[1] = clr.g;
+    rgbaArr[2] = clr.b;
+    rgbaArr[3] = clr.a / 255.0;
+
+    putToCache(colorStr, rgbaArr);
+
+    return rgbaArr;
+}
+
+/**
+ * @param {Array.<number>} hsla
+ * @param {Array.<number>} rgba
+ * @return {Array.<number>} rgba
+ */
+function hsla2rgba(hsla, rgba) {
+    var h = (((parseFloat(hsla[0]) % 360) + 360) % 360) / 360;  // 0 .. 1
+    // NOTE(deanm): According to the CSS spec s/l should only be
+    // percentages, but we don"t bother and let float or percentage.
+    var s = parseCssFloat(hsla[1]);
+    var l = parseCssFloat(hsla[2]);
+    var m2 = l <= 0.5 ? l * (s + 1) : l + s - l * s;
+    var m1 = l * 2 - m2;
+
+    rgba = rgba || [];
+    setRgba(rgba,
+        clampCssByte(cssHueToRgb(m1, m2, h + 1 / 3) * 255),
+        clampCssByte(cssHueToRgb(m1, m2, h) * 255),
+        clampCssByte(cssHueToRgb(m1, m2, h - 1 / 3) * 255),
+        1
+    );
+
+    if (hsla.length === 4) {
+        rgba[3] = hsla[3];
+    }
+
+    return rgba;
+}
+
+/**
+ * @param {Array.<number>} rgba
+ * @return {Array.<number>} hsla
+ */
+function rgba2hsla(rgba) {
+    if (!rgba) {
+        return;
+    }
+
+    // RGB from 0 to 255
+    var R = rgba[0] / 255;
+    var G = rgba[1] / 255;
+    var B = rgba[2] / 255;
+
+    var vMin = Math.min(R, G, B); // Min. value of RGB
+    var vMax = Math.max(R, G, B); // Max. value of RGB
+    var delta = vMax - vMin; // Delta RGB value
+
+    var L = (vMax + vMin) / 2;
+    var H;
+    var S;
+    // HSL results from 0 to 1
+    if (delta === 0) {
+        H = 0;
+        S = 0;
+    }
+    else {
+        if (L < 0.5) {
+            S = delta / (vMax + vMin);
+        }
+        else {
+            S = delta / (2 - vMax - vMin);
+        }
+
+        var deltaR = (((vMax - R) / 6) + (delta / 2)) / delta;
+        var deltaG = (((vMax - G) / 6) + (delta / 2)) / delta;
+        var deltaB = (((vMax - B) / 6) + (delta / 2)) / delta;
+
+        if (R === vMax) {
+            H = deltaB - deltaG;
+        }
+        else if (G === vMax) {
+            H = (1 / 3) + deltaR - deltaB;
+        }
+        else if (B === vMax) {
+            H = (2 / 3) + deltaG - deltaR;
+        }
+
+        if (H < 0) {
+            H += 1;
+        }
+
+        if (H > 1) {
+            H -= 1;
+        }
+    }
+
+    var hsla = [H * 360, S, L];
+
+    if (rgba[3] !== null) {
+        hsla.push(rgba[3]);
+    }
+
+    return hsla;
+}
+
+/**
+ * @param {string} color
+ * @param {number} level
+ * @return {string}
+ * @memberOf module:zrender/util/color
+ */
+function lift(color, level) {
+    var colorArr = parse(color);
+    if (colorArr) {
+        for (var i in 3) {
+            if (level < 0) {
+                colorArr[i] = colorArr[i] * (1 - level) | 0;
+            }
+            else {
+                colorArr[i] = ((255 - colorArr[i]) * level + colorArr[i]) | 0;
+            }
+            if (colorArr[i] > 255) {
+                colorArr[i] = 255;
+            }
+            else if (color[i] < 0) {
+                colorArr[i] = 0;
+            }
+        }
+        return stringify(colorArr, colorArr.length === 4 ? "rgba" : "rgb");
+    }
+}
+
+/**
+ * @param {string} color
+ * @return {string}
+ * @memberOf module:zrender/util/color
+ */
+function toHex(color) {
+    var colorArr = parse(color);
+    if (colorArr) {
+        return ((1 << 24) + (colorArr[0] << 16) + (colorArr[1] << 8) + (+colorArr[2])).toString(16).slice(1);
+    }
+}
+
+/**
+ * Map value to color. Faster than lerp methods because color is represented by rgba array.
+ * @param {number} normalizedValue A float between 0 and 1.
+ * @param {Array.<Array.<number>>} colors List of rgba color array
+ * @param {Array.<number>} [out] Mapped gba color array
+ * @return {Array.<number>} will be null/undefined if input illegal.
+ */
+function fastLerp(normalizedValue, colors, out) {
+    if (!(colors && colors.length)
+        || !(normalizedValue >= 0 && normalizedValue <= 1)
+    ) {
+        return;
+    }
+
+    out = out || [];
+
+    var value = normalizedValue * (colors.length - 1);
+    var leftIndex = Math.floor(value);
+    var rightIndex = Math.ceil(value);
+    var leftColor = colors[leftIndex];
+    var rightColor = colors[rightIndex];
+    var dv = value - leftIndex;
+    out[0] = clampCssByte(lerpNumber(leftColor[0], rightColor[0], dv));
+    out[1] = clampCssByte(lerpNumber(leftColor[1], rightColor[1], dv));
+    out[2] = clampCssByte(lerpNumber(leftColor[2], rightColor[2], dv));
+    out[3] = clampCssFloat(lerpNumber(leftColor[3], rightColor[3], dv));
+
+    return out;
+}
+
+/**
+ * @deprecated
+ */
+var fastMapToColor = fastLerp;
+
+/**
+ * @param {number} normalizedValue A float between 0 and 1.
+ * @param {Array.<string>} colors Color list.
+ * @param {boolean=} fullOutput Default false.
+ * @return {(string|Object)} Result color. If fullOutput,
+ *                           return {color: ..., leftIndex: ..., rightIndex: ..., value: ...},
+ * @memberOf module:zrender/util/color
+ */
+function lerp(normalizedValue, colors, fullOutput) {
+    if (!(colors && colors.length)
+        || !(normalizedValue >= 0 && normalizedValue <= 1)
+    ) {
+        return;
+    }
+
+    var value = normalizedValue * (colors.length - 1);
+    var leftIndex = Math.floor(value);
+    var rightIndex = Math.ceil(value);
+    var leftColor = parse(colors[leftIndex]);
+    var rightColor = parse(colors[rightIndex]);
+    var dv = value - leftIndex;
+
+    var color = stringify(
+        [
+            clampCssByte(lerpNumber(leftColor[0], rightColor[0], dv)),
+            clampCssByte(lerpNumber(leftColor[1], rightColor[1], dv)),
+            clampCssByte(lerpNumber(leftColor[2], rightColor[2], dv)),
+            clampCssFloat(lerpNumber(leftColor[3], rightColor[3], dv))
+        ],
+        "rgba"
+    );
+
+    return fullOutput
+        ? {
+            color: color,
+            leftIndex: leftIndex,
+            rightIndex: rightIndex,
+            value: value
+        }
+        : color;
+}
+
+/**
+ * @deprecated
+ */
+var mapToColor = lerp;
+
+/**
+ * @param {string} color
+ * @param {number=} h 0 ~ 360, ignore when null.
+ * @param {number=} s 0 ~ 1, ignore when null.
+ * @param {number=} l 0 ~ 1, ignore when null.
+ * @return {string} Color string in rgba format.
+ * @memberOf module:zrender/util/color
+ */
+function modifyHSL(color, h, s, l) {
+    color = parse(color);
+
+    if (color) {
+        color = rgba2hsla(color);
+        h !== null && (color[0] = clampCssAngle(h));
+        s !== null && (color[1] = parseCssFloat(s));
+        l !== null && (color[2] = parseCssFloat(l));
+
+        return stringify(hsla2rgba(color), "rgba");
+    }
+}
+
+/**
+ * @param {string} color
+ * @param {number=} alpha 0 ~ 1
+ * @return {string} Color string in rgba format.
+ * @memberOf module:zrender/util/color
+ */
+function modifyAlpha(color, alpha) {
+    color = parse(color);
+
+    if (color && alpha !== null) {
+        color[3] = clampCssFloat(alpha);
+        return stringify(color, "rgba");
+    }
+}
+
+/**
+ * @param {Array.<number>} arrColor like [12,33,44,0.4]
+ * @param {string} type "rgba", "hsva", ...
+ * @return {string} Result color. (If input illegal, return undefined).
+ */
+function stringify(arrColor, type) {
+    if (!arrColor || !arrColor.length) {
+        return;
+    }
+    var colorStr = arrColor[0] + "," + arrColor[1] + "," + arrColor[2];
+    if (type === "rgba" || type === "hsva" || type === "hsla") {
+        colorStr += "," + arrColor[3];
+    }
+    return type + "(" + colorStr + ")";
+}
+
+} //namespace color

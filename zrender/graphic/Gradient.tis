@@ -1,0 +1,18 @@
+class Gradient
+{
+    /**
+    * @param {Array.<Object>} colorStops
+    */
+    function this(colorStops) {
+        this.colorStops = colorStops || [];
+    }
+
+    function addColorStop(offset, color) {
+        this.colorStops.push({
+
+            offset: offset,
+
+            color: color
+        });
+    }
+} //class Gradient

@@ -1,0 +1,9 @@
+//import
+include "./core/env.tis"
+include "./core/guid.tis"
+include "./core/util.tis"
+include "./Handler.tis"
+include "./Storage.tis"
+include "./Painter.tis"
+include "./animation/Animation.tis"
+include "./dom/HandlerProxy.tis"

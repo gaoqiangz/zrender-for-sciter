@@ -1,0 +1,142 @@
+/**
+ * Displayable for incremental rendering. It will be rendered in a separate layer
+ * IncrementalDisplay have too main methods. `clearDisplayables` and `addDisplayables`
+ * addDisplayables will render the added displayables incremetally.
+ *
+ * It use a not clearFlag to tell the painter don"t clear the layer if it"s the first element.
+ */
+include "./Displayable.tis"
+include "../core/BoundingRect.tis"
+
+class IncrementalDisplayable : Displayable
+{
+    // TODO Style override ?
+    function this(opts = null) {
+
+        super(opts);
+
+        this._displayables = [];
+
+        this._temporaryDisplayables = [];
+
+        this._cursor = 0;
+
+        this.notClear = true;
+
+        //保持notClear的状态
+        //*有可能对象在等待绘制时开启了notClear属性
+        //by gaoqiangz
+        this.keepNotClear = false;
+    }
+
+    var incremental = true;
+
+    function clearDisplayables() {
+        this._displayables = [];
+        this._temporaryDisplayables = [];
+        this._cursor = 0;
+        this.dirty();
+
+        this.notClear = false;
+
+        if(this.paintPending)
+            this.keepNotClear = true;
+    }
+
+    function addDisplayable(displayable, notPersistent) {
+        if (notPersistent) {
+            this._temporaryDisplayables.push(displayable);
+        }
+        else {
+            this._displayables.push(displayable);
+        }
+        this.dirty();
+    }
+
+    function addDisplayables(displayables, notPersistent) {
+        notPersistent = notPersistent || false;
+        for (var displayable in displayables) {
+            this.addDisplayable(displayable, notPersistent);
+        }
+    }
+
+    function eachPendingDisplayable(cb) {
+        if(!cb) return;
+        for (var i = this._cursor; i < this._displayables.length; i++) {
+            cb(this._displayables[i]);
+        }
+        for (var displayable in this._temporaryDisplayables) {
+            cb(displayable);
+        }
+    }
+
+    function update() {
+        this.updateTransform();
+        for (var i = this._cursor; i < this._displayables.length; i++) {
+            var displayable = this._displayables[i];
+            // PENDING
+            displayable.parent = this;
+            displayable.update();
+            displayable.parent = null;
+        }
+        for (var displayable in this._temporaryDisplayables) {
+            // PENDING
+            displayable.parent = this;
+            displayable.update();
+            displayable.parent = null;
+        }
+    }
+
+    function brush(ctx, prevEl) {
+        // Render persistant displayables.
+        for (var i = this._cursor; i < this._displayables.length; i++) {
+            var displayable = this._displayables[i];
+            displayable.beforeBrush && displayable.beforeBrush(ctx);
+            displayable.brush(ctx, i === this._cursor ? null : this._displayables[i - 1]);
+            displayable.afterBrush && displayable.afterBrush(ctx);
+        }
+        this._cursor = i;
+        // Render temporary displayables.
+        for (var (i,displayable) in this._temporaryDisplayables) {
+            displayable.beforeBrush && displayable.beforeBrush(ctx);
+            displayable.brush(ctx, i === 0 ? null : this._temporaryDisplayables[i - 1]);
+            displayable.afterBrush && displayable.afterBrush(ctx);
+        }
+
+        this._temporaryDisplayables = [];
+        
+        if(this.paintPending && !this.keepNotClear)
+            this.notClear = true;
+        this.keepNotClear = false;
+    }
+
+    var m = [];
+    function getBoundingRect() {
+        if (!this._rect) {
+            var rect = new BoundingRect(Infinity, Infinity, -Infinity, -Infinity);
+            for (var displayable in this._displayables) {
+                var childRect = displayable.getBoundingRect().clone();
+                if (displayable.needLocalTransform()) {
+                    childRect.applyTransform(displayable.getLocalTransform(m));
+                }
+                rect.union(childRect);
+            }
+            this._rect = rect;
+        }
+        return this._rect;
+    }
+
+    function contain(x, y) {
+        var localPos = this.transformCoordToLocal(x, y);
+        var rect = this.getBoundingRect();
+
+        if (rect.contain(localPos[0], localPos[1])) {
+            for (var displayable in this._displayables) {
+                if (displayable.contain(x, y)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+} //class IncrementalDisplayable

@@ -1,0 +1,53 @@
+/**
+ * 玫瑰线
+ * @module zrender/graphic/shape/Rose
+ */
+//import
+include "../Path.tis"
+
+var Rose = Path.extend({
+
+    type: "rose",
+
+    shape: {
+        cx: 0.0,
+        cy: 0.0,
+        r: [],
+        k: 0.0,
+        n: 1
+    },
+
+    style: {
+        stroke: "#000",
+        fill: null
+    },
+
+    buildPath: function (ctx, shape) {
+        const RADIAN = Math.PI / 180.0;
+        var x;
+        var y;
+        var R = shape.r;
+        var r;
+        var k = shape.k;
+        var n = shape.n.toInteger();
+
+        var x0 = shape.cx;
+        var y0 = shape.cy;
+
+        ctx.moveTo(x0, y0);
+
+        for (var r in R) {
+            for (var j in 360 * n) {
+                x = r
+                        * Math.sin(((k / n * j).toInteger() % 360).toFloat() * RADIAN)
+                        * Math.cos(j * RADIAN)
+                        + x0;
+                y = r
+                        * Math.sin(((k / n * j).toInteger() % 360).toFloat() * RADIAN)
+                        * Math.sin(j * RADIAN)
+                        + y0;
+                ctx.lineTo(x, y);
+            }
+        }
+    }
+});

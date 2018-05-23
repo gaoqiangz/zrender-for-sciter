@@ -1,0 +1,413 @@
+/**
+ * States machine for managing graphic states
+ */
+
+/**
+ * @typedef {Object} IGraphicState
+ * @property {number} [zlevel]
+ * @property {number} [z]
+ * @property {Array.<number>} {position}
+ * @property {Array.<number>|number} {rotation}
+ * @property {Array.<number>} {scale}
+ * @property {Object} style
+ *
+ * @property {Function} onenter
+ * @property {Function} onleave
+ * @property {Function} ontransition
+ * @property {Array.<IGraphicStateTransition|string>} transition
+ *           Transition object or a string descriptor like "* 30 0 Linear"
+ */
+
+//import
+include "../core/util.tis"
+include "../core/vector.tis"
+include "./Style.tis"
+
+namespace ns_states
+{
+
+const TRANSITION_PROPERTIES = ["position", "rotation", "scale", "style", "shape"];
+
+class TransitionObject
+{
+    /**
+    * @module zrender/graphic/States~TransitionObject
+    */
+    function this(opts) {
+        if (typeof opts == #string) {
+            this._fromStr(opts);
+        }
+        else if (opts) {
+            opts.prop && (this.prop = opts.prop);
+            opts.duration !== null && (this.duration = opts.duration);
+            opts.easing && (this.easing = opts.easing);
+            opts.delay && (this.delay = opts.delay);
+        }
+        if (this.prop !== "*") {
+            this.prop = this.prop.split(",");
+        }
+        else {
+            this.prop = TRANSITION_PROPERTIES;
+        }
+    }
+
+    /**
+     * List of all transition properties. Splitted by comma. Must not have spaces in the string.
+     * e.g. "position,style.color". "*" will match all the valid properties.
+     * @type {string}
+     * @default *
+     */
+     //property -> prop
+    var prop = "*";
+
+    /**
+     * @type {string}
+     * @default "Linear"
+     */
+    var easing = "Linear";
+
+    /**
+     * @type {number}
+     * @default "number"
+     */
+    var duration = 500;
+
+    /**
+     * @type {number}
+     */
+    var delay = 0;
+
+    function _fromStr(str) {
+        var arr = str.split(/\s+/g);
+        this.prop = arr[0];
+        this.duration = +arr[1];
+        this.delay = +arr[2];
+        this.easing = arr[3];
+    }
+
+} //class TransitionObject
+
+class GraphicStates
+{
+    /**
+    * @alias module:zrender/graphic/States
+    */
+    function this(opts) {
+
+        opts = opts || {};
+
+        this._states = {};
+
+        /**
+        * Target element
+        * @type {zrender/graphic/Displayable|zrender/container/Group}
+        */
+        this._el = opts.el;
+
+        this._subStates = [];
+
+        this._transitionAnimators = [];
+
+        if (opts.initialState) {
+            this._initialState = opts.initialState;
+        }
+
+        var optsStates = opts.states;
+        if (optsStates) {
+            for (var name in optsStates) {
+                var state = optsStates[name];
+                this._addState(name, state);
+            }
+        }
+
+        this.setState(this._initialState);
+    }
+
+    /**
+     * All other state will be extended from initial state
+     * @type {string}
+     * @private
+     */
+    var _initialState = "normal";
+
+    /**
+     * Current state
+     * @type {string}
+     * @private
+     */
+    var _currentState = "";
+
+    function el() {
+        return this._el;
+    }
+
+    function _addState(name, state) {
+        this._states[name] = state;
+
+        if (state.transition) {
+            state.transition = new TransitionObject(state.transition);
+        }
+
+        // Extend from initial state
+        if (name !== this._initialState) {
+            this._extendFromInitial(state);
+        }
+        else {
+            var el = this._el;
+            // setState 的时候自带的 style 和 shape 都会被直接覆盖
+            // 所以这边先把自带的 style 和 shape 扩展到初始状态中
+            util.merge(state.style, el.style, false, false);
+            if (state.shape) {
+                util.merge(state.shape, el.shape, false, true);
+            }
+            else {
+                state.shape = util.clone(el.shape, true);
+            }
+
+            for (var name in this._states) {
+                this._extendFromInitial(this._states[name]);
+            }
+        }
+    }
+
+    function _extendFromInitial(state) {
+        var initialState = this._states[this._initialState];
+        if (initialState && state !== initialState) {
+            util.merge(state, initialState, false, true);
+        }
+    }
+
+    function setState(name, silent) {
+        if (name === this._currentState
+            && ! this.transiting()
+        ) {
+            return;
+        }
+
+        var state = this._states[name];
+
+        if (state) {
+            this._stopTransition();
+
+            if (! silent) {
+                var prevState = this._states[this._currentState];
+                if (prevState) {
+                    prevState.onleave && prevState.onleave.call(this);
+                }
+
+                state.onenter && state.onenter.call(this);
+            }
+
+            this._currentState = name;
+
+            if (this._el) {
+                var el = this._el;
+
+                // Setting attributes
+                if (state.zlevel !== null) {
+                    el.zlevel = state.zlevel;
+                }
+                if (state.z !== null) {
+                    el.z = state.z;
+                }
+
+                // SRT
+                state.position && vector.copy(el.position, state.position);
+                state.scale && vector.copy(el.scale, state.scale);
+                if (state.rotation !== null) {
+                    el.rotation = state.rotation;
+                }
+
+                // Style
+                if (state.style) {
+                    var initialState = this._states[this._initialState];
+                    el.style = new Style();
+                    if (initialState) {
+                        el.style.extendFrom(initialState.style, false);
+                    }
+                    if (
+                        // Not initial state
+                        name != this._initialState
+                        // Not copied from initial state in _extendFromInitial method
+                        && initialState.style !== state.style
+                    ) {
+                        el.style.extendFrom(state.style, true);
+                    }
+                }
+                if (state.shape) {
+                    el.shape = util.clone(state.shape, true);
+                }
+
+                el.dirty();
+            }
+        }
+
+        for (var i in this._subStates) {
+            this._subStates.setState(name);
+        }
+    }
+
+    function getState() {
+        return this._currentState;
+    }
+
+    function transitionState(target, done) {
+        if (
+            target === this._currentState
+            && ! this.transiting()
+        ) {
+            return;
+        }
+
+        var state = this._states[target];
+        var styleShapeReg = /$[style|shape]\./;
+        var self = this;
+
+        // Animation 去重
+        var propPathMap = {};
+
+        if (state) {
+
+            self._stopTransition();
+
+            var el = self._el;
+
+            if (state.transition && el && el.__zr) {// El can be animated
+                var transitionCfg = state.transition;
+                var prop = transitionCfg.prop;
+
+                var animatingCount = 0;
+                var animationDone = function () {
+                    animatingCount--;
+                    if (animatingCount === 0) {
+                        self.setState(target);
+                        done && done();
+                    }
+                };
+                for (var propName in prop) {
+                    // Animating all the properties in style or shape
+                    if (propName == "style" || propName == "shape") {
+                        if (state[propName]) {
+                            for (var key in state[propName]) {
+                                var path = propName + "." + key;
+                                if (propPathMap[path]) {
+                                    continue;
+                                }
+                                propPathMap[path] = 1;
+                                animatingCount += self._animProp(
+                                    state, propName, key, transitionCfg, animationDone
+                                );
+                            }
+                        }
+                    }
+                    else {
+                        if (propPathMap[propName]) {
+                            continue;
+                        }
+                        propPathMap[propName] = 1;
+                        // Animating particular property in style or style
+                        if (propName.match(styleShapeReg)) {
+                            // remove "style.", "shape." prefix
+                            var subProp = propName.slice(0, 5);
+                            propName = propName.slice(6);
+                            animatingCount += self._animProp(
+                                state, subProp, propName, transitionCfg, animationDone
+                            );
+                        }
+                        else {
+                            animatingCount += self._animProp(
+                                state, "", propName, transitionCfg, animationDone
+                            );
+                        }
+
+                    }
+                }
+                // No transition properties
+                if (animatingCount === 0) {
+                    self.setState(target);
+                    done && done();
+                }
+            }
+            else {
+                self.setState(target);
+                done && done();
+            }
+        }
+
+        var subStates = self._subStates;
+        for (var i in subStates.length) {
+            subStates.transitionState(target);
+        }
+    }
+
+    /**
+     * Do transition animation of particular property
+     * @param {Object} state
+     * @param {string} subPropKey
+     * @param {string} key
+     * @param {Object} transitionCfg
+     * @param {Function} done
+     * @private
+     */
+    function _animProp(state, subPropKey, key, transitionCfg, done) {
+        var el = this._el;
+        var stateObj = subPropKey ? state[subPropKey] : state;
+        var elObj = subPropKey ? el[subPropKey] : el;
+        var availableProp = stateObj && (key in stateObj)
+            && elObj && (key in elObj);
+
+        var transitionAnimators = this._transitionAnimators;
+        if (availableProp) {
+            var obj = {};
+            if (stateObj[key] === elObj[key]) {
+                return 0;
+            }
+            obj[key] = stateObj[key];
+
+            var animator = el.animate(subPropKey)
+                .when(transitionCfg.duration, obj)
+                .delay(transitionCfg.dealy)
+                .done(function () {
+                    var idx = util.indexOf(transitionAnimators, 1);
+                    if (idx > 0) {
+                        transitionAnimators.splice(idx, 1);
+                    }
+                    done();
+                })
+                .start(transitionCfg.easing);
+            transitionAnimators.push(animator);
+
+            return 1;
+        }
+        return 0;
+    }
+
+    function _stopTransition() {
+        var transitionAnimators = this._transitionAnimators;
+        for (var i in transitionAnimators.length) {
+            transitionAnimators[i].stop();
+        }
+        transitionAnimators.length = 0;
+    }
+
+    function transiting() {
+        return this._transitionAnimators.length > 0;
+    }
+
+    function addSubStates(states) {
+        this._subStates.push(states);
+    }
+
+    function removeSubStates(states) {
+        var idx = util.indexOf(this._subStates, states);
+        if (idx >= 0) {
+            this._subStates.splice(states, 1);
+        }
+    }
+
+} //class GraphicStates
+
+} //namespace ns_states
+
+//export
+var GraphicStates = ns_states.GraphicStates;

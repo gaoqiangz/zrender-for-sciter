@@ -1,0 +1,39 @@
+/**
+ * Do not mount those modules on 'src/zrender' for better tree shaking.
+ */
+
+//import
+include "./core/matrix.tis"
+include "./core/vector.tis"
+include "./tool/color.tis"
+include "./tool/path.tis"
+
+include "./container/Group.tis"
+include "./graphic/Path.tis"
+include "./graphic/Image.tis"
+include "./graphic/CompoundPath.tis"
+
+include "./graphic/Text.tis"
+include "./graphic/IncrementalDisplayable.tis"
+
+include "./graphic/shape/Arc.tis"
+include "./graphic/shape/BezierCurve.tis"
+include "./graphic/shape/Circle.tis"
+include "./graphic/shape/Droplet.tis"
+include "./graphic/shape/Ellipse.tis"
+include "./graphic/shape/Heart.tis"
+include "./graphic/shape/Isogon.tis"
+include "./graphic/shape/Line.tis"
+include "./graphic/shape/Polygon.tis"
+include "./graphic/shape/Polyline.tis"
+include "./graphic/shape/Rect.tis"
+include "./graphic/shape/Ring.tis"
+include "./graphic/shape/Rose.tis"
+include "./graphic/shape/Sector.tis"
+include "./graphic/shape/Star.tis"
+include "./graphic/shape/Trochoid.tis"
+include "./graphic/LinearGradient.tis"
+include "./graphic/RadialGradient.tis"
+include "./graphic/Pattern.tis"
+
+include "./core/BoundingRect.tis"

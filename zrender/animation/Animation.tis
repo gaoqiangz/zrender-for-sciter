@@ -1,0 +1,248 @@
+/**
+ * 动画主类, 调度和管理所有动画控制器
+ *
+ * @module zrender/animation/Animation
+ * @author pissang(https://github.com/pissang)
+ */
+// TODO Additive animation
+// http://iosoteric.com/additive-animations-animatewithduration-in-ios-8/
+// https://developer.apple.com/videos/wwdc2014/#236
+
+//import
+include "../core/util.tis"
+include "../core/event.tis"
+include "./Animator.tis"
+
+/**
+ * @typedef {Object} IZRenderStage
+ * @property {Function} update
+ */
+
+class Animation
+{
+
+    /**
+    * @alias module:zrender/animation/Animation
+    * @constructor
+    * @param {Object} [options]
+    * @param {Function} [options.onframe]
+    * @param {IZRenderStage} [options.stage]
+    * @example
+    *     var animation = new Animation();
+    *     var obj = {
+    *         x: 100,
+    *         y: 100
+    *     };
+    *     animation.animate(node.position)
+    *         .when(1000, {
+    *             x: 500,
+    *             y: 500
+    *         })
+    *         .when(2000, {
+    *             x: 100,
+    *             y: 100
+    *         })
+    *         .start("spline");
+    */
+    function this(dom,options = undefined) {
+
+        options = options || {};
+
+        this.dom = dom;
+
+        this.stage = options.stage || {};
+
+        this.onframe = options.onframe || function() {};
+
+        // private properties
+        this._clips = [];
+
+        this._running = false;
+
+        this._time;
+
+        this._pausedTime;
+
+        this._pauseStart;
+
+        this._paused = false;
+
+        Dispatcher.this.call(this);
+    }
+
+    /**
+     * 添加 clip
+     * @param {module:zrender/animation/Clip} clip
+     */
+    function addClip(clip) {
+        this._clips.push(clip);
+    }
+    /**
+     * 添加 animator
+     * @param {module:zrender/animation/Animator} animator
+     */
+    function addAnimator(animator) {
+        animator.animation = this;
+        var clips = animator.getClips();
+        for (var clip in clips) {
+            this.addClip(clip);
+        }
+    }
+    /**
+     * 删除动画片段
+     * @param {module:zrender/animation/Clip} clip
+     */
+    function removeClip(clip) {
+        var idx = util.indexOf(this._clips, clip);
+        if (idx >= 0) {
+            this._clips.splice(idx, 1);
+        }
+    }
+
+    /**
+     * 删除动画片段
+     * @param {module:zrender/animation/Animator} animator
+     */
+    function removeAnimator(animator) {
+        var clips = animator.getClips();
+        for (var clip in clips) {
+            this.removeClip(clip);
+        }
+        animator.animation = null;
+    }
+
+    function _update() {
+        var time = new Date().getTime() - this._pausedTime;
+        var delta = time - this._time;
+        var clips = this._clips;
+        var len = clips.length;
+        
+        var deferredEvents = [];
+        var deferredClips = [];
+        
+        for (var clip in clips) {
+            var e = clip.step(time, delta);
+            // Throw out the events need to be called after
+            // stage.update, like destroy
+            if (e) {
+                deferredEvents.push(e);
+                deferredClips.push(clip);
+            }
+        }
+
+        // Remove the finished clip
+        for (var i = 0; i < len;) {
+            if (clips[i]._needsRemove) {
+                clips[i] = clips[len - 1];
+                clips.pop();
+                len--;
+            }
+            else {
+                i++;
+            }
+        }
+        
+        for (var (i,evt) in deferredEvents) {
+            deferredClips[i].fire(evt);
+        }
+
+        this._time = time;
+
+        this.onframe(delta);
+
+        // 'frame' should be triggered before stage, because upper application
+        // depends on the sequence (e.g., echarts-stream and finish
+        // event judge)
+        this.trigger("frame", delta);
+        
+        if (this.stage.update) {
+            this.stage.update();
+        }
+    }
+
+    function _startLoop() {
+        this._running = true;
+        
+        //by gaoqiangz
+        this.dom.animate(function(){
+            if (this super._running) {
+                !this super._paused && this super._update();
+                return 16; //60fps
+            }
+            return 0;
+        });
+    }
+
+    /**
+     * Start animation
+     */
+    function start() {
+
+        this._time = new Date().getTime();
+        this._pausedTime = 0;
+
+        this._startLoop();
+    }
+    /**
+     * Stop animation
+     */
+    function stop() {
+        this._running = false;
+    }
+
+    /**
+     * Pause animation
+     */
+    function pause() {
+        if (!this._paused) {
+            this._pauseStart = new Date().getTime();
+            this._paused = true;
+        }
+    }
+
+    /**
+     * Resume animation
+     */
+    function resume() {
+        if (this._paused) {
+            this._pausedTime += (new Date().getTime()) - this._pauseStart;
+            this._paused = false;
+        }
+    }
+
+    /**
+     * Clear animation
+     */
+    function clear() {
+        this._clips = [];
+    }
+
+    /**
+    * Creat animator for a target, whose props can be animated.
+    *
+    * @param  {Object} target
+    * @param  {Object} options
+    * @param  {boolean} [options.loop=false] Whether loop animation.
+    * @param  {Function} [options.getter=null] Get value from target.
+    * @param  {Function} [options.setter=null] Set value to target.
+    * @return {module:zrender/animation/Animation~Animator}
+    */
+    // TODO Gap
+    function animate(target, options) {
+        options = options || {};
+
+        var animator = new Animator(
+            target,
+            options.loop,
+            options.getter,
+            options.setter
+        );
+
+        this.addAnimator(animator);
+
+        return animator;
+    }
+
+} //class Animation
+
+util.mixin(Animation, Dispatcher);

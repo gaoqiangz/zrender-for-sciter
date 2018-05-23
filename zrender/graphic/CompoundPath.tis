@@ -1,0 +1,56 @@
+// CompoundPath to improve performance
+//import
+include "./Path.tis"
+
+var CompoundPath = Path.extend({
+
+    type: "compound",
+
+    shape: {
+
+        paths: null
+    },
+
+    _updatePathDirty: function () {
+        var dirtyPath = this.__dirtyPath;
+        var paths = this.shape.paths;
+        for (var path in paths) {
+            // Mark as dirty if any subpath is dirty
+            dirtyPath = dirtyPath || path.__dirtyPath;
+        }
+        this.__dirtyPath = dirtyPath;
+        this.__dirty = this.__dirty || dirtyPath;
+    },
+
+    beforeBrush: function () {
+        this._updatePathDirty();
+        var paths = this.shape.paths || [];
+        var scale = this.getGlobalScale();
+        // Update path scale
+        for (var path in paths.length) {
+            if (!path.path) {
+                path.createPathProxy();
+            }
+            path.path.setScale(scale[0], scale[1]);
+        }
+    },
+
+    buildPath: function (ctx, shape) {
+        var paths = shape.paths || [];
+        for (var path in paths) {
+            path.buildPath(ctx, path.shape, true);
+        }
+    },
+
+    afterBrush: function () {
+        var paths = this.shape.paths || [];
+        for (var i in paths.length) {
+            paths[i].__dirtyPath = false;
+        }
+    },
+
+    getBoundingRect: function () {
+        this._updatePathDirty();
+        return Path.getBoundingRect.call(this);
+    }
+});

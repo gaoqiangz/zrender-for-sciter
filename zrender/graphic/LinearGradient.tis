@@ -1,0 +1,37 @@
+//import
+include "./Gradient.tis"
+
+class LinearGradient : Gradient
+{
+    /**
+    * x, y, x2, y2 are all percent from 0 to 1
+    * @param {number} [x=0]
+    * @param {number} [y=0]
+    * @param {number} [x2=1]
+    * @param {number} [y2=0]
+    * @param {Array.<Object>} colorStops
+    * @param {boolean} [globalCoord=false]
+    */
+    function this(x = undefined, y = undefined, x2 = undefined, y2 = undefined, colorStops = undefined, globalCoord = false) {
+        // Should do nothing more in this constructor. Because gradient can be
+        // declard by `color: {type: "linear", colorStops: ...}`, where
+        // this constructor will not be called.
+
+        this.x = x || 0.0;
+
+        this.y = y || 0.0;
+
+        this.x2 = x2 || 1.0;
+
+        this.y2 = y2 || 0.0;
+
+        // Can be cloned
+        this.type = "linear";
+
+        // If use global coord
+        this.global = globalCoord || false;
+
+        super(colorStops);
+    }
+
+} //class LinearGradient

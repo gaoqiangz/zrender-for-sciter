@@ -1,0 +1,46 @@
+/**
+ * 事件辅助类
+ * @module zrender/core/event
+ * @author Kener (@Kener-林峰, kener.linfeng@gmail.com)
+ */
+
+//import
+include "../mixin/Eventful.tis"
+include "./env.tis"
+
+namespace eventHelper
+{
+
+function normalizeEvent(el, e) {
+    
+    e.zrX = e.x;
+    e.zrY = e.y;
+    e.zrDelta = (e.wheelDelta) ? e.wheelDelta / 120 : -(e.detail || 0) / 3;
+    e.which = (e.buttons & 1 ? 1 : (e.buttons & 2 ? 3 : (e.buttons & 4 ? 2 : 0)));
+
+    return e;
+}
+
+/**
+ * preventDefault and stopPropagation.
+ * Notice: do not do that in zrender. Upper application
+ * do that if necessary.
+ *
+ * @memberOf module:zrender/core/event
+ * @method
+ * @param {Event} e : event对象
+ */
+var stop = function (e) {
+    e.returnValue = false;
+    e.cancelBubble = true;
+};
+
+function notLeftMouse(e) {
+    // If e.which is undefined, considered as left mouse event.
+    return e.which > 1;
+}
+
+} //namespace event
+
+// 做向上兼容
+var Dispatcher = Eventful;

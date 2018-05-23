@@ -1,0 +1,188 @@
+/**
+ * Path 代理，可以在`buildPath`中用于替代`ctx`, 会保存每个path操作的命令到pathCommands属性中
+ * 可以用于 isInsidePath 判断以及获取boundingRect
+ *
+ * @module zrender/core/PathProxy
+ * @author Yi Shen (http://www.github.com/pissang)
+ */
+
+// TODO getTotalLength, getPointAtLength
+
+//import
+include "./vector.tis"
+include "./BoundingRect.tis"
+include "../config.tis"
+
+namespace ns_pathproxy
+{
+
+class PathProxy
+{
+
+    /**
+    * @alias module:zrender/core/PathProxy
+    * @constructor
+    */
+    function this() {
+        this._path = null;
+    }
+
+    /**
+     * @readOnly
+     */
+    function setScale(sx, sy) {
+        return;
+        /*this._ux = Math.abs(1 / config.devicePixelRatio / sx) || 0;
+        this._uy = Math.abs(1 / config.devicePixelRatio / sy) || 0;*/
+    }
+
+    /**
+     * @return {module:zrender/core/PathProxy}
+     */
+    function beginPath() {
+        this._path = new Path2D();
+        return this;
+    }
+
+    /**
+     * @param  {number} x
+     * @param  {number} y
+     * @return {module:zrender/core/PathProxy}
+     */
+    function moveTo(x, y) {
+        this._path && this._path.moveTo(x,y);
+        return this;
+    }
+
+    /**
+     * @param  {number} x
+     * @param  {number} y
+     * @return {module:zrender/core/PathProxy}
+     */
+    function lineTo(x, y) {
+        this._path && this._path.lineTo(x,y);
+        return this;
+    }
+
+    /**
+     * @param  {number} x1
+     * @param  {number} y1
+     * @param  {number} x2
+     * @param  {number} y2
+     * @param  {number} x3
+     * @param  {number} y3
+     * @return {module:zrender/core/PathProxy}
+     */
+    function bezierCurveTo(x1, y1, x2, y2, x3, y3) {
+        this._path && this._path.bezierCurveTo(x1, y1, x2, y2, x3, y3);
+        return this;
+    }
+
+    /**
+     * @param  {number} x1
+     * @param  {number} y1
+     * @param  {number} x2
+     * @param  {number} y2
+     * @return {module:zrender/core/PathProxy}
+     */
+    function quadraticCurveTo(x1, y1, x2, y2) {
+        this._path && this._path.quadraticCurveTo(x1, y1, x2, y2);
+        return this;
+    }
+
+    /**
+     * @param  {number} cx
+     * @param  {number} cy
+     * @param  {number} r
+     * @param  {number} startAngle
+     * @param  {number} endAngle
+     * @param  {boolean} anticlockwise
+     * @return {module:zrender/core/PathProxy}
+     */
+    function arc(cx, cy, r, startAngle, endAngle, anticlockwise = false) {
+        this._path && this._path.arc(cx, cy, r, startAngle, endAngle, anticlockwise);
+        return this;
+    }
+
+    // TODO
+    function arcTo(x1, y1, x2, y2, radius) {
+        this._path && this._path.arcTo(x1, y1, x2, y2, radius);
+        return this;
+    }
+
+    // TODO
+    function rect(x, y, w, h) {
+        this._path && this._path.rect(x, y, w, h);
+        return this;
+    }
+
+    /**
+     * @return {module:zrender/core/PathProxy}
+     */
+    function closePath() {
+        this._path && this._path.closePath();
+        return this;
+    }
+
+    /**
+     * @param {CanvasRenderingContext2D} ctx
+     * @return {module:zrender/core/PathProxy}
+     */
+    function fill(ctx) {
+        ctx.fill(this._path);
+        return this;
+    }
+
+    /**
+     * @param {CanvasRenderingContext2D} ctx
+     * @return {module:zrender/core/PathProxy}
+     */
+    function stroke(ctx) {
+        ctx.stroke(this._path);
+        return this;
+    }
+
+    /**
+     * @param {CanvasRenderingContext2D} ctx
+     * @return {module:zrender/core/PathProxy}
+     */
+    function draw(ctx) {
+        ctx.draw(this._path);
+        return this;
+    }
+    
+    /**
+     * 添加子路径
+     * @param {module:zrender/core/PathProxy|Array.<module:zrender/core/PathProxy>} path
+     */
+    function appendPath(path) {
+        if(this._path)
+            this._path.addPath(path._path);
+        else
+            this._path = path._path;
+        return this;
+    }
+
+    /**
+     * @return {module:zrender/core/BoundingRect}
+     */
+    function getBoundingRect() {
+        var x1 = 0,y1 = 0,x2 = 0,y2 = 0;
+        if(this._path)
+            (x1,y1,x2,y2) = this._path.bounds();
+        return new BoundingRect(
+            x1,y1,x2 - x1,y2 - y1
+        );
+    }
+
+    function contain(x,y) {
+        if(this._path) return this._path.isPointInside(x,y);
+        return false;
+    }
+
+} //class PathProxy
+
+} //namespace ns_pathproxy
+
+//export
+var PathProxy = ns_pathproxy.PathProxy;

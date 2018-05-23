@@ -1,0 +1,15 @@
+//import
+include "../config.tis"
+
+function log(arguments..) {
+    if (config.debugMode === 1) {
+        for (var k in arguments) {
+            throw arguments[k];
+        }
+    }
+    else if (config.debugMode > 1) {
+        for (var k in arguments) {
+            stdout.println(arguments[k]);
+        }
+    }
+}

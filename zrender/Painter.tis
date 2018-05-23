@@ -1,0 +1,773 @@
+//import
+include "./core/env.tis"
+include "./core/util.tis"
+include "./core/log.tis"
+include "./core/BoundingRect.tis"
+include "./core/timsort.tis"
+include "./Layer.tis"
+include "./graphic/Image.tis"
+
+namespace ns_painter
+{
+
+var HOVER_LAYER_ZLEVEL = 1e5;
+
+var EL_AFTER_INCREMENTAL_INC = 0.01;
+var INCREMENTAL_INC = 0.001;
+
+function parseInt10(val) {
+    return parseInt(val, 10);
+}
+
+function isLayerValid(layer) {
+    if (!layer) {
+        return false;
+    }
+
+    if (layer.__builtin__) {
+        return true;
+    }
+
+    if (typeof(layer.resize) !== #function
+        || typeof(layer.refresh) !== #function
+    ) {
+        return false;
+    }
+
+    return true;
+}
+
+var tmpRect = new BoundingRect(0, 0, 0, 0);
+var viewRect = new BoundingRect(0, 0, 0, 0);
+function isDisplayableCulled(el, width, height) {
+    tmpRect.copy(el.getBoundingRect());
+    if (el.transform) {
+        tmpRect.applyTransform(el.transform);
+    }
+    viewRect.width = width;
+    viewRect.height = height;
+    return !tmpRect.intersect(viewRect);
+}
+
+function isClipPathChanged(clipPaths, prevClipPaths) {
+    if (clipPaths == prevClipPaths) { // Can both be null or undefined
+        return false;
+    }
+
+    if (!clipPaths || !prevClipPaths || (clipPaths.length !== prevClipPaths.length)) {
+        return true;
+    }
+    for (var i in clipPaths.length) {
+        if (clipPaths[i] !== prevClipPaths[i]) {
+            return true;
+        }
+    }
+}
+
+function doClip(clipPaths, ctx) {
+    for (var clipPath in clipPaths) {
+        clipPath.setTransform(ctx);
+        ctx.beginPath();
+        clipPath.buildPath(ctx, clipPath.shape);
+        ctx.clip();
+        // Transform back
+        clipPath.restoreTransform(ctx);
+    }
+}
+
+class Painter
+{
+    /**
+    * @alias module:zrender/Painter
+    * @constructor
+    * @param {HTMLElement} root 绘图容器
+    * @param {module:zrender/Storage} storage
+    * @param {Object} opts
+    */
+    function this(root, storage, opts) {
+
+        this.type = "canvas";
+
+        this._opts = opts = util.extend({}, opts || {});
+
+        /**
+        * 绘图容器
+        * @type {HTMLElement}
+        */
+        this.root = root;
+        this.root.style.set({
+            position: "relative",
+            overflow: "hidden"
+        });
+        this._width = root.width;
+        this._height = root.height;
+
+        /**
+        * @type {module:zrender/Storage}
+        */
+        this.storage = storage;
+
+        /**
+        * @type {Array.<number>}
+        * @private
+        */
+        var zlevelList = this._zlevelList = [];
+
+        /**
+        * @type {Object.<string, module:zrender/Layer>}
+        * @private
+        */
+        var layers = this._layers = {};
+
+        /**
+        * @type {Object.<string, Object>}
+        * @private
+        */
+        this._layerConfig = {};
+
+        /**
+        * zrender will do compositing when root is a canvas and have multiple zlevels.
+        */
+        this._needsManuallyCompositing = false;
+
+        /**
+        * @type {module:zrender/Layer}
+        * @private
+        */
+        this._hoverlayer = null;
+
+        this._hoverElements = [];
+    }
+
+    function getType() {
+        return "canvas";
+    }
+    
+    /**
+     * If painter use a single canvas
+     * @return {boolean}
+     */
+    function isSingleCanvas() {
+        return false;
+    }
+    /**
+     * @return {HTMLDivElement}
+     */
+    function getViewportRoot() {
+        return this.root;
+    }
+
+    function getViewportRootOffset() {
+        return {
+            offsetLeft: 0,
+            offsetTop: 0
+        };
+    }
+
+    /**
+     * 刷新
+     * @param {boolean} [paintAll=false] 强制绘制所有displayable
+     */
+    function refresh(paintAll = false) {
+        this.eachBuiltinLayer(function (layer, z) {
+            layer.__dirty = layer.__used = false;
+        });
+
+        var prevLayer = null;
+        var incrementalLayerCount = 0;
+        
+        function updatePrevLayer(idx) {
+            if (prevLayer) {
+                if (prevLayer.__endIndex !== idx) {
+                    prevLayer.__dirty = true;
+                }
+                prevLayer.__endIndex = idx;
+            }
+        }
+
+        var paintList = this.storage.getDisplayList(true);
+
+        for (var (i,el) in paintList) {
+            var zlevel = el.zlevel;
+            var layer;
+            // PENDING If change one incremental element style ?
+            // TODO Where there are non-incremental elements between incremental elements.
+            if (el.incremental) {
+                layer = this.getLayer(zlevel + INCREMENTAL_INC);
+                layer.incremental = true;
+                incrementalLayerCount = 1;
+            }
+            else {
+                layer = this.getLayer(zlevel + (incrementalLayerCount > 0 ? EL_AFTER_INCREMENTAL_INC : 0));
+            }
+            layer.__paintList = paintList;
+
+            if (!layer.__builtin__) {
+                log("ZLevel " + zlevel + " has been used by unkown layer " + layer.id);
+            }
+
+            if (layer !== prevLayer) {
+                layer.__used = true;
+                if (layer.__startIndex !== i) {
+                    layer.__dirty = true;
+                }
+                layer.__startIndex = i;
+                if (!layer.incremental) {
+                    layer.__drawIndex = i;
+                }
+                else {
+                    // Mark layer draw index needs to update.
+                    layer.__drawIndex = -1;
+                }
+                updatePrevLayer(i);
+                prevLayer = layer;
+            }
+            if (el.__dirty) {
+                layer.__dirty = true;
+                if (layer.incremental && layer.__drawIndex < 0) {
+                    // Start draw from the first dirty element.
+                    layer.__drawIndex = i;
+                }
+            }
+            //设置paintPending状态
+            //by gaoqiangz
+            el.paintPending = true;
+        }
+        updatePrevLayer(paintList.length);
+
+        //通知刷新
+        //by gaoqiangz
+        for (var zlevel in this._zlevelList) {
+            var layer = this._layers[zlevel];
+            if (layer.__builtin__) {
+                // Used in last frame but not in this frame. Needs clear
+                if (!layer.__used && layer.getElementCount() > 0) {
+                    layer.__dirty = true;
+                    layer.__startIndex = layer.__endIndex = layer.__drawIndex = 0;
+                }
+                // For incremental layer. In case start index changed and no elements are dirty.
+                if (layer.__dirty && layer.__drawIndex < 0) {
+                    layer.__drawIndex = layer.__startIndex;
+                }
+                if(layer !== this._hoverlayer && (layer.__dirty || paintAll)) {
+                    var erase = paintAll || 
+                                layer.__startIndex === layer.__endIndex || 
+                                !layer.incremental ||
+                                /*!layer.__paintList[layer.__startIndex].incremental ||*/
+                                layer.__paintList[layer.__startIndex].notClear === false;
+                    var clearColor = (layer.zlevel === this._zlevelList[0] ? this._backgroundColor : null);
+                    layer.refresh(erase,false,clearColor);
+                }
+            }
+            else {
+                layer.refresh(paintAll);
+            }
+        }
+
+        this.refreshHover();
+
+        return this;
+    }
+
+    function addHover(el, hoverStyle) {
+        if (el.__hoverMir) {
+            return;
+        }
+        var elMirror = new el.prototype({
+            style: el.style,
+            shape: el.shape
+        });
+        elMirror.__from = el;
+        el.__hoverMir = elMirror;
+        elMirror.setStyle(hoverStyle);
+        this._hoverElements.push(elMirror);
+    }
+
+    function removeHover(el) {
+        var elMirror = el.__hoverMir;
+        var hoverElements = this._hoverElements;
+        var idx = util.indexOf(hoverElements, elMirror);
+        if (idx >= 0) {
+            hoverElements.splice(idx, 1);
+        }
+        el.__hoverMir = null;
+    }
+
+    function clearHover(el) {
+        var hoverElements = this._hoverElements;
+        for (var i in hoverElements.length) {
+            var from = hoverElements[i].__from;
+            if (from) {
+                from.__hoverMir = null;
+            }
+        }
+        hoverElements.length = 0;
+    }
+
+    function refreshHover() {
+        if(this._hoverElements.length === 0) return;
+        if (!this._hoverlayer) {
+            this._hoverlayer = this.getLayer(HOVER_LAYER_ZLEVEL);
+        }
+
+        this._hoverlayer.refresh(true);
+    }
+
+    function getHoverLayer() {
+        return this.getLayer(HOVER_LAYER_ZLEVEL);
+    }
+
+    /**
+     * 绘图回调事件
+     * @param {Layer} [ctx] 绘制的layer
+     * @param {Boolean} [erased] 已擦除背景
+     */
+     //by gaoqiangz
+    function _onPaint(layer,erased) {
+        if(layer === this._hoverlayer)
+        {
+            this._doPaintHover()
+            return;
+        }
+        //没有绑定paintList说明是由sciter主动刷新，所以需要保持__dirty状态
+        //by gaoqiangz
+        var keepState = !layer.__paintList;
+        var paintAll = erased || !layer.__paintList;
+        var list = layer.__paintList || this.storage.getDisplayList(false);
+        layer.__paintList = null;
+        if(!list || list.length < layer.__endIndex) return;
+        
+        var finished = this._doPaintList(layer, list, paintAll, keepState);
+        if(!finished)
+        {
+            layer.__paintList = list;
+            layer.refresh(false);
+        }
+    }
+
+    function _doPaintList(layer,list, paintAll, keepState) {
+        var finished = true;
+        var ctx = layer.ctx;
+        var scope = {};
+        ctx.save();
+
+        var start = paintAll ? layer.__startIndex : layer.__drawIndex;
+        
+        var useTimer = !paintAll && layer.incremental;
+        var startTime = useTimer && System.ticks;
+
+        var i = start;
+        for (; i < layer.__endIndex; i++) {
+            var el = list[i];
+            this._doPaintEl(el, layer, paintAll, scope);
+            if(!keepState) el.__dirty = false;
+
+            if (useTimer) {
+                var dTime = System.ticks - startTime;
+                // Give 15 millisecond to draw.
+                // The rest elements will be drawn in the next frame.
+                if (dTime > 15 && i < layer.__endIndex - 1) {
+                    break;
+                }
+            }
+            //设置paintPending状态
+            //by gaoqiangz
+            el.paintPending = false;
+        }
+        layer.__drawIndex = i;
+
+        if (layer.__drawIndex < layer.__endIndex - 1) {
+            finished = false;
+        }
+
+        if (scope.prevElClipPaths) {
+            // Needs restore the state. If last drawn element is in the clipping area.
+            ctx.restore();
+        }
+
+        ctx.restore();
+
+        return finished;
+    }
+
+    function _doPaintEl(el, currentLayer, forcePaint, scope) {
+        var ctx = currentLayer.ctx;
+        var m = el.transform;
+        if (
+            (currentLayer.__dirty || forcePaint)
+            // Ignore invisible element
+            && !el.invisible
+            // Ignore transparent element
+            && el.style.opacity != 0
+            // Ignore scale 0 element, in some environment like node-canvas
+            // Draw a scale 0 element can cause all following draw wrong
+            // And setTransform with scale 0 will cause set back transform failed.
+            && !(m && !m[0] && !m[3])
+            // Ignore culled element
+            && !(el.culling && isDisplayableCulled(el, this._width, this._height))
+        ) {
+            var clipPaths = el.__clipPaths;
+
+            // Optimize when clipping on group with several elements
+            if (!scope.prevElClipPaths
+                || isClipPathChanged(clipPaths, scope.prevElClipPaths)
+            ) {
+                // If has previous clipping state, restore from it
+                if (scope.prevElClipPaths) {
+                    currentLayer.ctx.restore();
+                    scope.prevElClipPaths = null;
+
+                    // Reset prevEl since context has been restored
+                    scope.prevEl = null;
+                }
+                // New clipping state
+                if (clipPaths) {
+                    ctx.save();
+                    doClip(clipPaths, ctx);
+                    scope.prevElClipPaths = clipPaths;
+                }
+            }
+            el.beforeBrush && el.beforeBrush(ctx);
+
+            el.brush(ctx, scope.prevEl || null);
+            scope.prevEl = el;
+
+            el.afterBrush && el.afterBrush(ctx);
+        }
+    }
+
+    function _doPaintHover() {
+        var hoverElements = this._hoverElements;
+        var len = hoverElements.length;
+        if (!len) return;
+        
+        timsort(hoverElements, this.storage.displayableSortFunc);
+
+        var scope = {};
+        this._hoverlayer.ctx.save();
+        for (var i = 0; i < len;) {
+            var el = hoverElements[i];
+            var originalEl = el.__from;
+            // Original el is removed
+            // PENDING
+            if (!(originalEl && originalEl.__zr)) {
+                hoverElements.splice(i, 1);
+                originalEl.__hoverMir = null;
+                len--;
+                continue;
+            }
+            i++;
+
+            // Use transform
+            // FIXME style and shape ?
+            if (!originalEl.invisible) {
+                el.transform = originalEl.transform;
+                el.invTransform = originalEl.invTransform;
+                el.__clipPaths = originalEl.__clipPaths;
+                // el.
+                this._doPaintEl(el, this._hoverlayer, true, scope);
+            }
+        }
+        this._hoverlayer.ctx.restore();
+    }
+
+    /**
+     * 获取 zlevel 所在层，如果不存在则会创建一个新的层
+     * @param {number} zlevel
+     * @return {module:zrender/Layer}
+     */
+    function getLayer(zlevel) {
+        var layer = this._layers[zlevel];
+        if (!layer) {
+            // Create a new layer
+            layer = new Layer("zr_" + zlevel, this);
+            layer.zlevel = zlevel;
+            layer.__builtin__ = true;
+
+            if (this._layerConfig[zlevel]) {
+                util.merge(layer, this._layerConfig[zlevel], true);
+            }
+
+            this.insertLayer(zlevel, layer);
+
+            //注册绘图回调事件
+            //by gaoqiangz
+            layer.onPaint(this._onPaint,this);
+        }
+
+        return layer;
+    }
+
+    function insertLayer(zlevel, layer) {
+        var layersMap = this._layers;
+        var zlevelList = this._zlevelList;
+
+        if (layersMap[zlevel]) {
+            log("ZLevel " + zlevel + " has been used already");
+            return;
+        }
+        // Check if is a valid layer
+        if (!isLayerValid(layer)) {
+            log("Layer of zlevel " + zlevel + " is not valid");
+            return;
+        }
+
+        var prevLayer = null;
+        var i = zlevelList.length - 1;
+        for(;i >= 0;--i)
+        {
+            if(zlevelList[i] < zlevel)
+            {
+                prevLayer = layersMap[zlevelList[i]];
+                break;
+            }
+        }
+        zlevelList.splice(i + 1, 0, zlevel);
+        layersMap[zlevel] = layer;
+
+        if(prevLayer)
+            this.root.insert(layer.dom,prevLayer.dom.index + 1);
+        else
+            this.root.prepend(layer.dom);
+    }
+
+    // Iterate each layer
+    function eachLayer(cb, context = this) {
+        for (var zlevel in this._zlevelList) {
+            cb.call(context, this._layers[zlevel], zlevel);
+        }
+    }
+
+    // Iterate each buildin layer
+    function eachBuiltinLayer(cb, context = this) {
+        var layer;
+        for (var zlevel in this._zlevelList) {
+            layer = this._layers[zlevel]
+            if (layer.__builtin__) {
+                cb.call(context, layer, zlevel);
+            }
+        }
+    }
+
+    // Iterate each other layer except buildin layer
+    function eachOtherLayer(cb, context = this) {
+        var layer;
+        for (var zlevel in this._zlevelList) {
+            layer = this._layers[zlevel]
+            if (!layer.__builtin__) {
+                cb.call(context, layer, zlevel);
+            }
+        }
+    }
+
+    /**
+     * 获取所有已创建的层
+     * @param {Array.<module:zrender/Layer>} [prevLayer]
+     */
+    function getLayers() {
+        return this._layers;
+    }
+
+    /**
+     * 清除hover层外所有内容
+     */
+    function clear() {
+        this.eachBuiltinLayer(function(layer,z){
+            layer.clear();
+        });
+        return this;
+    }
+    
+    function setBackgroundColor(backgroundColor) {
+        this._backgroundColor = backgroundColor;
+    }
+
+    /**
+     * 修改指定zlevel的绘制参数
+     *
+     * @param {string} zlevel
+     * @param {Object} config 配置对象
+     * @param {string} [config.clearColor=0] 每次清空画布的颜色
+     * @param {string} [config.motionBlur=false] 是否开启动态模糊
+     * @param {number} [config.lastFrameAlpha=0.7]
+     *                 在开启动态模糊的时候使用，与上一帧混合的alpha值，值越大尾迹越明显
+     */
+    function configLayer(zlevel, config) {
+        if (config) {
+            var layerConfig = this._layerConfig;
+            if (!layerConfig[zlevel]) {
+                layerConfig[zlevel] = config;
+            }
+            else {
+                util.merge(layerConfig[zlevel], config, true);
+            }
+
+            for (var _zlevel in this._zlevelList) {
+                if (_zlevel === zlevel || _zlevel === zlevel + EL_AFTER_INCREMENTAL_INC) {
+                    util.merge(this._layers[_zlevel], layerConfig[zlevel], true);
+                }
+            }
+        }
+    }
+
+    /**
+     * 删除指定层
+     * @param {number} zlevel 层所在的zlevel
+     */
+    function delLayer(zlevel) {
+        var layers = this._layers;
+        var zlevelList = this._zlevelList;
+        var layer = layers[zlevel];
+        if (!layer) {
+            return;
+        }
+        layer.dom.remove();
+        layer.dom = null;
+        delete layers[zlevel];
+
+        zlevelList.splice(util.indexOf(zlevelList, zlevel), 1);
+    }
+
+    /**
+     * 区域大小变化后重绘
+     */
+    function resize(width = undefined, height = undefined) {
+        // Save input w/h
+        var opts = this._opts;
+        width !== undefined && (opts.width = width);
+        height !== undefined && (opts.height = height);
+
+        width === undefined && (width = this._width);
+        height === undefined && (height = this._height);
+
+        // 优化没有实际改变的resize
+        if (this._width != width || height != this._height) {
+            for (var id in this._layers) {
+                if(this._layers[id].__builtin__) continue;
+                this._layers[id].resize(width, height);
+            }
+            this.refresh(true);
+        }
+
+        this._width = width;
+        this._height = height;
+        
+        return this;
+    }
+
+    /**
+     * 清除单独的一个层
+     * @param {number} zlevel
+     */
+    function clearLayer(zlevel) {
+        var layer = this._layers[zlevel];
+        if (layer) {
+            layer.clear();
+        }
+    }
+
+    /**
+     * 释放
+     */
+    function dispose() {
+        this.root.clear();
+
+        this.root =
+        this.storage =
+        this._layers = null;
+    }
+
+    /**
+     * Get canvas which has all thing rendered
+     * @param {Object} opts
+     * @param {string} [opts.backgroundColor]
+     */
+    function getRenderedCanvas(opts) {
+        throw "no supported!";
+    }
+    /**
+     * 获取绘图区域宽度
+     */
+    function getWidth() {
+        return this._width;
+    }
+
+    /**
+     * 获取绘图区域高度
+     */
+    function getHeight() {
+        return this._height;
+    }
+
+    function _getSize(whIdx) {
+        if(whIdx === 0) return this.root.width;
+        return this.root.height;
+    }
+
+    function pathToImage(path) {
+        var canvas = util.createCanvas();
+        var ctx = canvas.getContext("2d");
+        var rect = path.getBoundingRect();
+        var style = path.style;
+        var shadowBlurSize = style.shadowBlur;
+        var shadowOffsetX = style.shadowOffsetX;
+        var shadowOffsetY = style.shadowOffsetY;
+        var lineWidth = style.hasStroke() ? style.lineWidth : 0;
+
+        var leftMargin = Math.max(lineWidth / 2, -shadowOffsetX + shadowBlurSize);
+        var rightMargin = Math.max(lineWidth / 2, shadowOffsetX + shadowBlurSize);
+        var topMargin = Math.max(lineWidth / 2, -shadowOffsetY + shadowBlurSize);
+        var bottomMargin = Math.max(lineWidth / 2, shadowOffsetY + shadowBlurSize);
+        var width = rect.width + leftMargin + rightMargin;
+        var height = rect.height + topMargin + bottomMargin;
+
+        //canvas.width = width;
+        //canvas.height = height;
+        //ctx.clearRect(0, 0, width, height);
+
+        var pathTransform = {
+            position: path.position,
+            rotation: path.rotation,
+            scale: path.scale
+        };
+        path.position = [leftMargin - rect.x, topMargin - rect.y];
+        path.rotation = 0;
+        path.scale = [1, 1];
+        path.updateTransform();
+
+        ctx.onPaint(function(ctx,erased){
+            path.brush(ctx,null);
+        });
+        
+        var primitiveImage = new Image(width.toInteger(),height.toInteger(),canvas);
+
+        var imgShape = new zrImage({
+            style: {
+                x: 0,
+                y: 0,
+                image: primitiveImage
+            }
+        });
+
+        if (pathTransform.position != null) {
+            imgShape.position = path.position = pathTransform.position;
+        }
+
+        if (pathTransform.rotation != null) {
+            imgShape.rotation = path.rotation = pathTransform.rotation;
+        }
+
+        if (pathTransform.scale != null) {
+            imgShape.scale = path.scale = pathTransform.scale;
+        }
+
+        canvas.remove();
+        return imgShape;
+    }
+    
+} //class Painter
+
+} //namespace ns_painter
+
+//export
+var Painter = ns_painter.Painter;

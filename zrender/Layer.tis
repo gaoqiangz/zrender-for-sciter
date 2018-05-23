@@ -1,0 +1,143 @@
+/**
+ * @module zrender/Layer
+ * @author pissang(https://www.github.com/pissang)
+ */
+//import
+include "./core/util.tis"
+include "./graphic/Style.tis"
+include "./graphic/Pattern.tis"
+
+namespace ns_layer
+{
+
+class Layer
+{
+    /**
+    * @alias module:zrender/Layer
+    * @constructor
+    * @extends module:zrender/mixin/Transformable
+    * @param {string} id
+    * @param {module:zrender/Painter} painter
+    */
+    function this(id, painter) {
+        this.id = id;
+
+        //为每一个layer创建一个dom层，自适应父dom的大小
+        //by gaoqiangz
+        this.dom = util.createCanvas();
+        this.dom.style.set({
+            position: "absolute",
+            left: "0",
+            top: "0",
+            right: "0",
+            bottom: "0"
+        });
+        this.dom.attributes["data-zr-dom-id"] = id;
+        this.ctx = this.dom.getContext("2d");
+
+        this.painter = painter;
+
+        this.config = null;
+
+        // Configs
+        /**
+        * 每次清空画布的颜色
+        * @type {string}
+        * @default 0
+        */
+        this.clearColor = 0;
+        /**
+        * 是否开启动态模糊
+        * @type {boolean}
+        * @default false
+        */
+        this.motionBlur = false;
+        /**
+        * 在开启动态模糊的时候使用，与上一帧混合的alpha值，值越大尾迹越明显
+        * @type {number}
+        * @default 0.7
+        */
+        this.lastFrameAlpha = 0.7;
+    }
+
+    //注册绘图事件回调
+    //callback:回调函数
+    //context:回调上下文[this]
+    //*回调函数的参数:
+    //*layer:此Layer对象
+    //*erased:已擦除画布
+    //by gaoqiangz
+    function onPaint(callback,context = this) {
+        if(!callback) return false;
+        var me = this;
+        this.ctx.onPaint(function(ctx,erased){
+            callback.call(context,me,erased);
+        },context);
+        return true;
+    }
+
+    //刷新
+    //by gaoqiangz
+    function refresh(erase = false,clearAll = false, clearColor = null) {
+        this.ctx.frameCached = this.motionBlur || this.incremental;
+        this.ctx.motionBlur = this.motionBlur ? this.lastFrameAlpha : null;
+        
+        if(erase)
+        {
+            clearColor = clearColor || this.clearColor;
+            if (clearColor && clearColor !== "transparent") {
+                var clearColorGradientOrPattern;
+                // Gradient
+                if (clearColor.colorStops) {
+                    // Cache canvas gradient
+                    clearColorGradientOrPattern = clearColor.__canvasGradient || Style.getGradient(this.ctx, clearColor, {
+                        x: 0,
+                        y: 0,
+                        width: this.painter.getWidth(),
+                        height: this.painter.getHeight()
+                    });
+
+                    clearColor.__canvasGradient = clearColorGradientOrPattern;
+                }
+                // Pattern
+                else if (clearColor.image) {
+                    clearColorGradientOrPattern = Pattern.getCanvasPattern.call(clearColor, this.ctx);
+                }
+                clearColor = clearColorGradientOrPattern || clearColor;
+            }
+        }
+
+        this.ctx.refresh(erase,clearColor,clearAll);
+    }
+
+    /**
+     * 清空该层画布
+     * @param {boolean} clearAll Clear all with out motion blur
+     */
+    function clear(clearAll = false) {
+        this.refresh(true,clearAll);
+    }
+    var __dirty = true;
+
+    var __used = false;
+
+    var __drawIndex = 0;
+    var __startIndex = 0;
+    var __endIndex = 0;
+    
+    //当前绘制所绑定的element list
+    //by gaoqiangz
+    var __paintList = null;
+
+    var incremental = false;
+
+    function getElementCount() {
+        return this.__endIndex - this.__startIndex;
+    }
+
+} //class Layer
+
+} //namespace ns_layer
+
+//export
+var Layer = ns_layer.Layer;

@@ -1,0 +1,58 @@
+/**
+ * n角星（n>3）
+ * @module zrender/graphic/shape/Star
+ */
+//import
+include "../Path.tis"
+
+var Star = Path.extend({
+
+    type: "star",
+
+    shape: {
+        cx: 0.0,
+        cy: 0.0,
+        n: 3.0,
+        r0: null,
+        r: 0.0
+    },
+
+    buildPath: function (ctx, shape) {
+        var n = shape.n;
+        if (!n || n < 2) {
+            return;
+        }
+
+        var x = shape.cx;
+        var y = shape.cy;
+        var r = shape.r;
+        var r0 = shape.r0;
+
+        // 如果未指定内部顶点外接圆半径，则自动计算
+        if (r0 === null || r0 === undefined || r === null || r === undefined) {
+            r0 = n > 4
+                // 相隔的外部顶点的连线的交点，
+                // 被取为内部交点，以此计算r0
+                ? r * Math.cos(2 * Math.PI / n) / Math.cos(Math.PI / n)
+                // 二三四角星的特殊处理
+                : r / 3.0;
+        }
+
+        var dStep = Math.PI / n;
+        var deg = -Math.PI / 2.0;
+        var xStart = x + r * Math.cos(deg);
+        var yStart = y + r * Math.sin(deg);
+        deg += dStep;
+
+        // 记录边界点，用于判断inside
+        ctx.moveTo(xStart, yStart);
+        var ri;
+        for (var i in (n * 2 - 1).toInteger()) {
+            ri = i % 2 === 0 ? r0 : r;
+            ctx.lineTo(x + ri * Math.cos(deg), y + ri * Math.sin(deg));
+            deg += dStep;
+        }
+
+        ctx.closePath();
+    }
+});

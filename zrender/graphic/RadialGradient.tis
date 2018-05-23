@@ -1,0 +1,33 @@
+//import
+include "./Gradient.tis"
+
+class RadialGradient : Gradient
+{
+    /**
+    * x, y, r are all percent from 0 to 1
+    * @param {number} [x=0.5]
+    * @param {number} [y=0.5]
+    * @param {number} [r=0.5]
+    * @param {Array.<Object>} [colorStops]
+    * @param {boolean} [globalCoord=false]
+    */
+    function this(x = undefined, y = undefined, r = undefined, colorStops = undefined, globalCoord = false) {
+        // Should do nothing more in this constructor. Because gradient can be
+        // declard by `color: {type: "radial", colorStops: ...}`, where
+        // this constructor will not be called.
+
+        this.x = x || 0.5;
+
+        this.y = y || 0.5;
+
+        this.r = r || 0.5;
+
+        // Can be cloned
+        this.type = "radial";
+
+        // If use global coord
+        this.global = globalCoord || false;
+
+        super(colorStops);
+    }
+} //class RadialGradient

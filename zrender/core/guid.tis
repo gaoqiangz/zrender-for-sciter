@@ -1,0 +1,11 @@
+/**
+ * zrender: 生成唯一id
+ *
+ * @author errorrik (errorrik@gmail.com)
+ */
+
+function guid() {
+    if(self.__zrIDStart === undefined)
+        self.__zrIDStart = 0x0907;
+    return self.__zrIDStart++;
+}

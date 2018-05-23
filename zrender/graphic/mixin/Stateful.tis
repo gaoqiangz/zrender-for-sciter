@@ -1,0 +1,33 @@
+/**
+ * Stateful mixin for graphic object
+ */
+//import
+include "../States.tis"
+
+class Stateful
+{
+    function this(opts) {
+        if (opts.states) {
+            this.initStates(opts.states);
+        }
+    }
+
+    function initStates(states) {
+        this._states = new States({
+            el: this,
+            states: states
+        });
+    }
+
+    function setState(name) {
+        this._states && this._states.setState(name);
+    }
+
+    function getState() {
+        return this._states && this._states.getState();
+    }
+
+    function transitionState(name, done) {
+        this._states && this._states.transitionState(name, done);
+    }
+} //class Stateful
