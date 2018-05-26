@@ -13,6 +13,7 @@ sciter minimum version: 4.1.8.5918
 5. CanvasRadialGradient only supports one center point
 6. CanvasRenderingContext2D::globalAlpha (affected: style::alpha)
 7. CanvasRenderingContext2D::globalCompositeOperation (affected: style::blend)
+8. CanvasRenderingContext2D::miterLimit (affected: style::miterLimit)
 
 # renamed
 1. Element -> zrElement (Element.tis)
