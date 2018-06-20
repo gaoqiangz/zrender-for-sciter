@@ -30,6 +30,9 @@ class Eventful
             return this;
         }
 
+        if(typeof event === #string)
+            event = symbol(event);
+
         if (!_h[event]) {
             _h[event] = [];
         }
@@ -62,6 +65,9 @@ class Eventful
             return this;
         }
 
+        if(typeof event === #string)
+            event = symbol(event);
+
         if (!_h[event]) {
             _h[event] = [];
         }
@@ -87,6 +93,8 @@ class Eventful
      * @return {boolean}
      */
     function isSilent(event) {
+        if(typeof event === #string)
+            event = symbol(event);
         var _h = this._$handlers;
         return _h[event] && _h[event].length;
     }
@@ -104,11 +112,14 @@ class Eventful
             return this;
         }
 
+        if(typeof event === #string)
+            event = symbol(event);
+
         if (handler) {
             if (_h[event]) {
                 var newList = [];
                 for (var i in _h[event].length) {
-                    if (_h[event][i]["h"] != handler) {
+                    if (_h[event][i][#h] != handler) {
                         newList.push(_h[event][i]);
                     }
                 }
@@ -133,6 +144,8 @@ class Eventful
      */
     function trigger(arguments..) {
         var type = arguments[0];
+        if(typeof type === #string)
+            type = symbol(type);
         if (this._$handlers[type]) {
             var args = arguments;
             var argLen = args.length;
@@ -147,17 +160,17 @@ class Eventful
                 // Optimize advise from backbone
                 switch (argLen) {
                     case 1:
-                        _h[i]["h"].call(_h[i]["ctx"]);
+                        _h[i][#h].call(_h[i][#ctx]);
                         break;
                     case 2:
-                        _h[i]["h"].call(_h[i]["ctx"], args[1]);
+                        _h[i][#h].call(_h[i][#ctx], args[1]);
                         break;
                     case 3:
-                        _h[i]["h"].call(_h[i]["ctx"], args[1], args[2]);
+                        _h[i][#h].call(_h[i][#ctx], args[1], args[2]);
                         break;
                     default:
                         // have more than 2 given arguments
-                        _h[i]["h"].apply(_h[i]["ctx"], args);
+                        _h[i][#h].apply(_h[i][#ctx], args);
                         break;
                 }
 
@@ -180,6 +193,8 @@ class Eventful
      */
     function triggerWithContext(arguments..) {
         var type = arguments[0];
+        if(typeof type === #string)
+            type = symbol(type);
         if (this._$handlers[type]) {
             var args = arguments;
             var argLen = args.length;
@@ -195,17 +210,17 @@ class Eventful
                 // Optimize advise from backbone
                 switch (argLen) {
                     case 1:
-                        _h[i]["h"].call(ctx);
+                        _h[i][#h].call(ctx);
                         break;
                     case 2:
-                        _h[i]["h"].call(ctx, args[1]);
+                        _h[i][#h].call(ctx, args[1]);
                         break;
                     case 3:
-                        _h[i]["h"].call(ctx, args[1], args[2]);
+                        _h[i][#h].call(ctx, args[1], args[2]);
                         break;
                     default:
                         // have more than 2 given arguments
-                        _h[i]["h"].apply(ctx, args);
+                        _h[i][#h].apply(ctx, args);
                         break;
                 }
 

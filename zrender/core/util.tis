@@ -36,26 +36,7 @@ function clone(source) {
         (typeof source !== #object && typeof source !== #array)) {
         return source;
     }
-    
-    var result = source;
-    var typeStr = typeof source;
-
-    if (typeStr === #array) {
-        //if (!isPrimitive(source)) {
-            result = [];
-            for (var i in source.length) {
-                result[i] = clone(source[i]);
-            }
-        //}
-    }
-    else if (/*!BUILTIN_OBJECT[typeStr] && */!isPrimitive(source)/* && !isDom(source)*/) {
-        result = {};
-        for (var key in source) {
-            result[key] = clone(source[key]);
-        }
-    }
-
-    return result;
+    return source.clone(true);
 }
 
 /**
@@ -71,10 +52,8 @@ function merge(target, source, overwrite = false) {
         return overwrite ? clone(source) : target;
     }
 
-    for (var key in source) {
+    for (var (key,sourceProp) in source) {
         var targetProp = target[key];
-        var sourceProp = source[key];
-
         if (isObject(sourceProp)
             && isObject(targetProp)
             && !isArray(sourceProp)
@@ -118,8 +97,8 @@ function mergeAll(targetAndSources, overwrite = false) {
  * @memberOf module:zrender/core/util
  */
 function extend(target, source) {
-    for (var key in source) {
-        target[key] = source[key];
+    for (var (key,val) in source) {
+        target[key] = val;
     }
     return target;
 }
@@ -131,9 +110,9 @@ function extend(target, source) {
  * @memberOf module:zrender/core/util
  */
 function defaults(target, source, overlay = false) {
-    for (var key in source) {
-        if (overlay ? source[key] !== undefined : target[key] === undefined) {
-            target[key] = source[key];
+    for (var (key,val) in source) {
+        if (overlay ? val !== undefined : target[key] === undefined) {
+            target[key] = val;
         }
     }
     return target;
@@ -141,7 +120,6 @@ function defaults(target, source, overlay = false) {
 
 function createCanvas() {
     var el = document.createElement("canvas");
-    $(head).append(el);
     el.style["display"] = "block";
     return el;
 }
@@ -197,13 +175,13 @@ function each(obj, cb, context = obj) {
         return;
     }
     if (typeof obj === #array) {
-        for (var i in obj.length) {
-            cb.call(context, obj[i], i, obj);
+        for (var (i,v) in obj) {
+            cb.call(context, v, i, obj);
         }
     }
     else {
-        for (var key in obj) {
-            cb.call(context, obj[key], key, obj);
+        for (var (key,val) in obj) {
+            cb.call(context, val, key, obj);
         }
     }
 }
@@ -265,9 +243,9 @@ function find(obj, cb, context = obj) {
     if (!(obj && cb)) {
         return;
     }
-    for (var i in obj.length) {
-        if (cb.call(context, obj[i], i, obj)) {
-            return obj[i];
+    for (var (i,v) in obj) {
+        if (cb.call(context, v, i, obj)) {
+            return v;
         }
     }
 }
@@ -283,7 +261,7 @@ function bind(arguments..) {
     var context = arguments[1];
     var args = arguments.slice(2);
     return function (arguments..) {
-        return func.apply(context, args.concat(arguments.slice(0)));
+        return func.apply(context, args.concat(arguments));
     };
 }
 
@@ -296,7 +274,7 @@ function curry(arguments..) {
     var func = arguments[0];
     var args = arguments.slice(1);
     return function (arguments..) {
-        return func.apply(this, args.concat(arguments.slice(0)));
+        return func.apply(this, args.concat(arguments));
     };
 }
 
@@ -345,9 +323,9 @@ function isObject(value) {
  * @param {*} value
  * @return {boolean}
  */
-function isBuiltInObject(value) {
+/*function isBuiltInObject(value) {
     return !!BUILTIN_OBJECT[value.toString()];
-}
+}*/
 
 /**
  * @memberOf module:zrender/core/util
@@ -417,7 +395,7 @@ function retrieve3(value0, value1, value2) {
  * @return {Array}
  */
 function slice(arguments..) {
-    return arguments.slice(0);
+    return arguments;
 }
 
 /**
@@ -453,12 +431,12 @@ function normalizeCssArray(val) {
 //*assert为tis的保留字
 //*改名为assertf
 //*也可直接使用assert <test-expression> [ : <info-expression> ]
-function assertf(condition, message) {
+/*function assertf(condition, message) {
     if (!condition) {
         throw message;
         //throw new Error(message);
     }
-}
+}*/
 
 /**
  * @memberOf module:zrender/core/util
@@ -477,7 +455,7 @@ function trim(str) {
     }
 }
 
-var primitiveKey = "__ec_primitive__";
+var primitiveKey = #__ec_primitive__;
 
 /**
  * Set an object as primitive to be ignored traversing children in clone or merge
@@ -543,7 +521,7 @@ function createHashMap(obj) {
 }
 
 function concatArray(a, b) {
-    return a.clone().concat(b);
+    return a.concat(b);
     /*var newArray = new a.constructor(a.length + b.length);
     for (var i = 0; i < a.length; i++) {
         newArray[i] = a[i];

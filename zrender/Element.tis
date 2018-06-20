@@ -131,7 +131,9 @@ class zrElement
      * @protected
      */
     function attrKV(key, value) {
-        if (key == "position" || key == "scale" || key == "origin") {
+        if(typeof key === #string)
+            key = symbol(key);
+        if (key === #position || key === #scale || key === #origin) {
             // Copy the array
             if (value) {
                 var target = this[key];
@@ -168,12 +170,14 @@ class zrElement
      * @param {*} value
      */
     function attr(key, value = undefined) {
-        if (typeof key === #string || typeof key === #symbol) {
+        if(typeof key === #string)
+            key = symbol(key);
+        if (typeof key === #symbol) {
             this.attrKV(key, value);
         }
         else if (util.isObject(key)) {
-            for (var name in key) {
-                this.attrKV(name, key[name]);
+            for (var (name,val) in key) {
+                this.attrKV(name, val);
             }
         }
 

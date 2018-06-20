@@ -2,11 +2,6 @@
 namespace ns_style
 {
 
-const STYLE_COMMON_PROPS = [
-    ["shadowBlur", 0], ["shadowOffsetX", 0], ["shadowOffsetY", 0], ["shadowColor", "#000"],
-    ["lineCap", "butt"], ["lineJoin", "miter"], ["miterLimit", 10]
-];
-
 function createLinearGradient(ctx, obj, rect) {
     var x = obj.x === null ? 0 : obj.x;
     var x2 = obj.x2 === null ? 1 : obj.x2;
@@ -90,6 +85,11 @@ class Style
     var shadowBlur = 0;
 
     /**
+     * @type {string}
+     */
+    var shadowColor = "#000";
+
+    /**
      * @type {number}
      */
     var shadowOffsetX = 0;
@@ -103,6 +103,21 @@ class Style
      * @type {number}
      */
     var lineWidth = 1;
+
+    /**
+     * @type {string}
+     */
+    var lineCap = "butt";
+
+    /**
+     * @type {string}
+     */
+    var lineJoin = "miter";
+
+    /**
+     * @type {number}
+     */
+    var miterLimit = 10;
 
     /**
      * If stroke ignore scale
@@ -346,49 +361,36 @@ class Style
      * @param {CanvasRenderingContext2D} ctx
      */
     function bind(ctx, el, prevEl) {
-        var style = this;
-        var prevStyle = prevEl && prevEl.style;
-        var firstDraw = !prevStyle;
+        //var prevStyle = prevEl && prevEl.style;
+        //var firstDraw = !prevStyle;
 
-        for (var prop in STYLE_COMMON_PROPS) {
-            var styleName = prop[0];
-            //if (firstDraw || style.(styleName) !== prevStyle.(styleName)) {
-                // FIXME Invalid property value will cause style leak from previous element.
-                ctx[styleName] = style.(styleName) || prop[1];
-            //}
-        }
+        ctx.shadowBlur = this.shadowBlur;
+        ctx.shadowOffsetX = this.shadowOffsetX;
+        ctx.shadowOffsetY = this.shadowOffsetY;
+        ctx.shadowColor = this.shadowColor;
+        ctx.lineCap = this.lineCap;
+        ctx.lineJoin = this.lineJoin;
+        //ctx.miterLimit = this.miterLimit;
 
-        //if ((firstDraw || style.fill !== prevStyle.fill)) {
-            ctx.fillStyle = style.fill;
-        //}
-        //if ((firstDraw || style.stroke !== prevStyle.stroke)) {
-            ctx.strokeStyle = style.stroke;
-        //}
-        //if ((firstDraw || style.opacity !== prevStyle.opacity)) {
-        //    ctx.globalAlpha = style.opacity == null ? 1 : style.opacity;
-        //}
+        ctx.fillStyle = this.fill;
+        ctx.strokeStyle = this.stroke;
 
-        //if ((firstDraw || style.blend !== prevStyle.blend)) {
-        //    ctx.globalCompositeOperation = style.blend || "source-over";
-        //}
+        //ctx.globalAlpha = this.opacity == null ? 1 : this.opacity;
+        //ctx.globalCompositeOperation = this.blend || "source-over";
+        
         if (this.hasStroke()) {
-            var lineWidth = style.lineWidth;
-            ctx.lineWidth = lineWidth / (
+            ctx.lineWidth = this.lineWidth / (
                 (this.strokeNoScale && el && el.getLineScale) ? el.getLineScale() : 1
             );
         }
     }
 
     function hasFill() {
-        var fill = this.fill;
-        return fill != null && fill !== "none";
+        return this.fill != null && this.fill !== "none";
     }
 
     function hasStroke() {
-        var stroke = this.stroke;
-        if(typeof this.lineWidth === #length)
-            this.lineWidth = this.lineWidth.toFloat(#px);
-        return stroke != null && stroke !== "none" && this.lineWidth > 0;
+        return this.stroke != null && this.stroke !== "none" && this.lineWidth > 0;
     }
 
     /**
@@ -400,16 +402,16 @@ class Style
      */
     function extendFrom(otherStyle, overwrite) {
         if (otherStyle) {
-            for (var name in otherStyle) {
+            for (var (name,val) in otherStyle) {
                 if ((overwrite === true
                         || (
                             overwrite === false
-                                ? !this.hasOwnProperty(name)
-                                : otherStyle[name] != null
+                                ? !this.exists(name)
+                                : val != null
                         )
                     )
                 ) {
-                    this[name] = otherStyle[name];
+                    this[name] = val;
                 }
             }
         }
@@ -421,7 +423,9 @@ class Style
      * @param {*} [obj]
      */
     function set(obj, value = undefined) {
-        if (typeof obj === #string || typeof obj === #symbol) {
+        if(typeof obj === #string)
+            obj = symbol(obj);
+        if (typeof obj === #symbol) {
             this[obj] = value;
         }
         else {
@@ -452,14 +456,6 @@ class Style
     }
 
 } //class Style
-
-var __dummy = (function() {
-    for (var prop in STYLE_COMMON_PROPS) {
-        if (!(prop[0] in Style)) {
-            Style[prop[0]] = prop[1];
-        }
-    }
-})();
 
 } //namespace ns_style
 

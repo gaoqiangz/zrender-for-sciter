@@ -59,6 +59,7 @@ for (var i = 0; i < 10; ++i) {
 			.start();
     })
     .on("dragleave", function () {
+		this.stopAnimation();
 		this.animateStyle()
 			.when(200, {
 				fill: "#fff"
@@ -66,6 +67,7 @@ for (var i = 0; i < 10; ++i) {
 			.start();
     })
     .on("drop", function () {
+		this.stopAnimation();
 		this.animateStyle()
 			.when(200, {
 				fill: "#fff"

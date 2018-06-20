@@ -26,7 +26,7 @@ include "./Style.tis"
 namespace ns_states
 {
 
-const TRANSITION_PROPERTIES = ["position", "rotation", "scale", "style", "shape"];
+const TRANSITION_PROPERTIES = [#position, #rotation, #scale, #style, #shape];
 
 class TransitionObject
 {
@@ -43,8 +43,12 @@ class TransitionObject
             opts.easing && (this.easing = opts.easing);
             opts.delay && (this.delay = opts.delay);
         }
+        if(typeof this.easing === #string)
+            this.easing = symbol(this.easing);
         if (this.prop !== "*") {
-            this.prop = this.prop.split(",");
+            this.prop = this.prop.toString().split(",");
+            for(var (i,v) in this.prop)
+                this.prop[i] = symbol(v);
         }
         else {
             this.prop = TRANSITION_PROPERTIES;
@@ -64,7 +68,7 @@ class TransitionObject
      * @type {string}
      * @default "Linear"
      */
-    var easing = "Linear";
+    var easing = #linear;
 
     /**
      * @type {number}
@@ -82,7 +86,7 @@ class TransitionObject
         this.prop = arr[0];
         this.duration = +arr[1];
         this.delay = +arr[2];
-        this.easing = arr[3];
+        this.easing = symbol(arr[3]);
     }
 
 } //class TransitionObject
@@ -109,14 +113,13 @@ class GraphicStates
         this._transitionAnimators = [];
 
         if (opts.initialState) {
-            this._initialState = opts.initialState;
+            this._initialState = symbol(opts.initialState);
         }
 
         var optsStates = opts.states;
         if (optsStates) {
-            for (var name in optsStates) {
-                var state = optsStates[name];
-                this._addState(name, state);
+            for (var (name,val) in optsStates) {
+                this._addState(name, val);
             }
         }
 
@@ -128,7 +131,7 @@ class GraphicStates
      * @type {string}
      * @private
      */
-    var _initialState = "normal";
+    var _initialState = #normal;
 
     /**
      * Current state
@@ -164,8 +167,8 @@ class GraphicStates
                 state.shape = util.clone(el.shape, true);
             }
 
-            for (var name in this._states) {
-                this._extendFromInitial(this._states[name]);
+            for (var state in this._states) {
+                this._extendFromInitial(state);
             }
         }
     }
@@ -178,8 +181,11 @@ class GraphicStates
     }
 
     function setState(name, silent) {
+        if(typeof name === #string)
+            name = symbol(name);
+
         if (name === this._currentState
-            && ! this.transiting()
+            && !this.transiting()
         ) {
             return;
         }
@@ -242,8 +248,8 @@ class GraphicStates
             }
         }
 
-        for (var i in this._subStates) {
-            this._subStates.setState(name);
+        for (var sub in this._subStates) {
+            sub.setState(name);
         }
     }
 
@@ -252,25 +258,28 @@ class GraphicStates
     }
 
     function transitionState(target, done) {
+        if(typeof target === #string)
+            target = symbol(target);
+
         if (
             target === this._currentState
-            && ! this.transiting()
+            && !this.transiting()
         ) {
             return;
         }
 
         var state = this._states[target];
         var styleShapeReg = /$[style|shape]\./;
-        var self = this;
+        var me = this;
 
         // Animation 去重
         var propPathMap = {};
 
         if (state) {
 
-            self._stopTransition();
+            me._stopTransition();
 
-            var el = self._el;
+            var el = me._el;
 
             if (state.transition && el && el.__zr) {// El can be animated
                 var transitionCfg = state.transition;
@@ -280,13 +289,13 @@ class GraphicStates
                 var animationDone = function () {
                     animatingCount--;
                     if (animatingCount === 0) {
-                        self.setState(target);
+                        me.setState(target);
                         done && done();
                     }
                 };
                 for (var propName in prop) {
                     // Animating all the properties in style or shape
-                    if (propName == "style" || propName == "shape") {
+                    if (propName === #style || propName === #shape) {
                         if (state[propName]) {
                             for (var key in state[propName]) {
                                 var path = propName + "." + key;
@@ -294,13 +303,14 @@ class GraphicStates
                                     continue;
                                 }
                                 propPathMap[path] = 1;
-                                animatingCount += self._animProp(
+                                animatingCount += me._animProp(
                                     state, propName, key, transitionCfg, animationDone
                                 );
                             }
                         }
                     }
                     else {
+                        propName = propName.toString();
                         if (propPathMap[propName]) {
                             continue;
                         }
@@ -310,13 +320,13 @@ class GraphicStates
                             // remove "style.", "shape." prefix
                             var subProp = propName.slice(0, 5);
                             propName = propName.slice(6);
-                            animatingCount += self._animProp(
-                                state, subProp, propName, transitionCfg, animationDone
+                            animatingCount += me._animProp(
+                                state, subProp, symbol(propName), transitionCfg, animationDone
                             );
                         }
                         else {
-                            animatingCount += self._animProp(
-                                state, "", propName, transitionCfg, animationDone
+                            animatingCount += me._animProp(
+                                state, null, symbol(propName), transitionCfg, animationDone
                             );
                         }
 
@@ -324,17 +334,17 @@ class GraphicStates
                 }
                 // No transition properties
                 if (animatingCount === 0) {
-                    self.setState(target);
+                    me.setState(target);
                     done && done();
                 }
             }
             else {
-                self.setState(target);
+                me.setState(target);
                 done && done();
             }
         }
 
-        var subStates = self._subStates;
+        var subStates = me._subStates;
         for (var i in subStates.length) {
             subStates.transitionState(target);
         }

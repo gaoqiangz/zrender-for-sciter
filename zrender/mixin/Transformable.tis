@@ -11,8 +11,6 @@ include "../core/vector.tis"
 namespace ns_transformable
 {
 
-var mIdentity = matrix.identity;
-
 var EPSILON = 5e-5;
 
 function isNotAroundZero(val) {
@@ -80,7 +78,7 @@ class Transformable
 
         var m = this.transform;
         if (!(needLocalTransform || parentHasTransform)) {
-            m && mIdentity(m);
+            m && matrix.identity(m);
             return;
         }
 
@@ -90,7 +88,7 @@ class Transformable
             this.getLocalTransform(m);
         }
         else {
-            mIdentity(m);
+            matrix.identity(m);
         }
 
         // 应用父节点变换
@@ -119,18 +117,16 @@ class Transformable
     */
     function setTransform(ctx) {
         var m = this.transform;
-        var dpr = ctx.dpr || 1;
         if (m) {
-            ctx.setTransform(dpr * m[0], dpr * m[1], dpr * m[2], dpr * m[3], dpr * m[4], dpr * m[5]);
+            ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
         }
         else {
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
         }
     }
 
     function restoreTransform(ctx) {
-        var dpr = ctx.dpr || 1;
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
     }
 
     var tmpTransform = [];
@@ -234,7 +230,7 @@ class Transformable
     //getLocalTransform -> getLocalTransform2
     function getLocalTransform2(target, m) {
         m = m || [];
-        mIdentity(m);
+        matrix.identity(m);
 
         var origin = target.origin;
         var scale = target.scale || [1, 1];

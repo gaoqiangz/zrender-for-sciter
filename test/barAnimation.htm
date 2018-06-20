@@ -30,14 +30,15 @@ for (var k = 0; k < 10; k++) {
 			},
 			onmouseover: function () {
 				this.animateStyle()
-					.when(200, {
+					.when(100, {
 						fill: "rgb(180, 0, 0)"
 					})
 					.start();
 			},
 			onmouseout: function () {
+				this.stopAnimation();
 				this.animateStyle()
-					.when(200, {
+					.when(100, {
 						fill: "rgb(0, 0, 180)"
 					})
 					.start();

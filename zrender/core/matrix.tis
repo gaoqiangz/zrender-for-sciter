@@ -10,10 +10,11 @@ namespace matrix
  * @return {Float32Array|Array.<number>}
  */
 function create() {
-    var out = new Array(6);
+    /*var out = new Array(6);
     identity(out);
 
-    return out;
+    return out;*/
+    return [1,0,0,1,0,0];
 }
 
 /**
@@ -135,7 +136,6 @@ function scale(out, a, v) {
  * @param {Float32Array|Array.<number>} a
  */
 function invert(out, a) {
-
     var aa = a[0];
     var ac = a[2];
     var atx = a[4];
@@ -163,9 +163,10 @@ function invert(out, a) {
  * @param {Float32Array|Array.<number>} a
  */
 function clone(a) {
-    var b = create();
+    /*var b = create();
     copy(b, a);
-    return b;
+    return b;*/
+    return a.clone();
 }
 
 } //namespace matrix

@@ -24,9 +24,11 @@ class Displayable : zrElement
         super(opts);
 
         // Extend properties
-        for (var name in opts) {
-            if (name != "style") {
-                this[name] = opts[name];
+        for (var (name,val) in opts) {
+            if(typeof name === #stirng)
+                name = symbol(name);
+            if (name !== #style) {
+                this[name] = val;
             }
         }
 
@@ -226,11 +228,13 @@ class Displayable : zrElement
      * @param {boolean} loop
      */
     function animateStyle(loop = false) {
-        return this.animate("style", loop);
+        return this.animate(#style, loop);
     }
 
     function attrKV(key, value) {
-        if (key != "style") {
+        if(typeof key === #stirng)
+            key = symbol(key);
+        if (key !== #style) {
             super.attrKV(key, value);
         }
         else {

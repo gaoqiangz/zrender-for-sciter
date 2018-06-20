@@ -11,7 +11,6 @@
 //import
 include "./vector.tis"
 include "./BoundingRect.tis"
-include "../config.tis"
 
 namespace ns_pathproxy
 {
@@ -32,8 +31,8 @@ class PathProxy
      */
     function setScale(sx, sy) {
         return;
-        /*this._ux = Math.abs(1 / config.devicePixelRatio / sx) || 0;
-        this._uy = Math.abs(1 / config.devicePixelRatio / sy) || 0;*/
+        /*this._ux = Math.abs(1 / sx) || 0;
+        this._uy = Math.abs(1 / sy) || 0;*/
     }
 
     /**
@@ -178,6 +177,20 @@ class PathProxy
     function contain(x,y) {
         if(this._path) return this._path.isPointInside(x,y);
         return false;
+    }
+
+    function containStroke(x,y,strokeWidth,hasFill) {
+        if(!this._path) return false;
+        var hits = 0;
+        var DISTANCE = strokeWidth.toFloat();
+        if(hasFill) DISTANCE /= 2.0; // half of strokeWidth
+        
+        if(this._path.isPointInside(x-DISTANCE,y-DISTANCE)) ++hits; 
+        if(this._path.isPointInside(x+DISTANCE,y-DISTANCE)) ++hits; 
+        if(this._path.isPointInside(x-DISTANCE,y+DISTANCE)) ++hits; 
+        if(this._path.isPointInside(x+DISTANCE,y+DISTANCE)) ++hits;
+
+        return hits > 0 && hits < 4;
     }
 
 } //class PathProxy

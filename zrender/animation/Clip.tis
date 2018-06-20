@@ -35,7 +35,9 @@ class Clip
 
         this.gap = options.gap || 0;
 
-        this.easing = options.easing || "Linear";
+        this.easing = options.easing || #linear;
+        if(typeof this.easing === #string)
+            this.easing = symbol(this.easing);
 
         this.onframe = options.onframe;
         this.ondestroy = options.ondestroy;
@@ -67,26 +69,26 @@ class Clip
         
         percent = percent < 1 ? percent : 1;//Math.min(percent, 1);
 
-        var easingFunc = typeof this.easing === #string ? easingFuncs[this.easing] : this.easing;
+        var easingFunc = typeof this.easing === #function ? this.easing : easingFuncs[this.easing];
         var schedule = typeof easingFunc === #function
             ? easingFunc(percent)
             : percent;
 
-        this.fire("frame", schedule);
+        this.onframe && this.onframe(this._target,schedule);
 
         // 结束
         if (percent == 1) {
             if (this.loop) {
-                this.restart (globalTime);
+                this.restart(globalTime);
                 // 重新开始周期
                 // 抛出而不是直接调用事件直到 stage.update 后再统一调用这些事件
-                return "restart";
+                return #onrestart;
             }
 
             // 动画完成将这个控制器标识为待删除
             // 在Animation.update中进行批量删除
             this._needsRemove = true;
-            return "destroy";
+            return #ondestroy;
         }
 
         return null;
@@ -101,7 +103,7 @@ class Clip
     }
 
     function fire(eventType, arg = undefined) {
-        var evt = this["on" + eventType];
+        var evt = this[eventType];
         if (evt) {
             evt(this._target, arg);
         }

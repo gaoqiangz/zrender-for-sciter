@@ -1,6 +1,5 @@
 //import
 include "./core/util.tis"
-include "./core/env.tis"
 include "./container/Group.tis"
 // Use timsort because in most case elements are partially sorted
 // https://jsfiddle.net/pissang/jr4x7mdm/8/
@@ -59,7 +58,6 @@ class zrStorage
      * @return {Array.<module:zrender/graphic/Displayable>}
      */
     function getDisplayList(update = false, includeIgnore = false) {
-        includeIgnore = includeIgnore || false;
         if (update) {
             this.updateDisplayList(includeIgnore);
         }
@@ -83,11 +81,10 @@ class zrStorage
 
         displayList.length = this._displayListLen;
 
-        env.canvasSupported && timsort(displayList, shapeCompareFunc);
+        timsort(displayList, shapeCompareFunc);
     }
 
     function _updateAndAddDisplayable(el, clipPaths, includeIgnore) {
-
         if (el.ignore && !includeIgnore) {
             return;
         }
@@ -95,19 +92,16 @@ class zrStorage
         el.beforeUpdate();
 
         if (el.__dirty) {
-
             el.update();
-
         }
 
         el.afterUpdate();
 
         var userSetClipPath = el.clipPath;
         if (userSetClipPath) {
-
             // FIXME 效率影响
             if (clipPaths) {
-                clipPaths = clipPaths.slice(0);
+                clipPaths = clipPaths.clone();
             }
             else {
                 clipPaths = [];

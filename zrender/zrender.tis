@@ -226,7 +226,7 @@ class ZRender
      */
     function flush() {
         var triggerRendered;
-
+        
         if (this._needsRefresh) {
             triggerRendered = true;
             this.refreshImmediately();
@@ -236,7 +236,7 @@ class ZRender
             this.refreshHoverImmediately();
         }
 
-        triggerRendered && this.trigger("rendered");
+        triggerRendered && this.trigger(#rendered);
     }
 
     /**

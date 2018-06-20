@@ -28,8 +28,7 @@ function isLayerValid(layer) {
         return true;
     }
 
-    if (typeof(layer.resize) !== #function
-        || typeof(layer.refresh) !== #function
+    if (typeof(layer.refresh) !== #function
     ) {
         return false;
     }
@@ -99,8 +98,10 @@ class Painter
             position: "relative",
             overflow: "hidden"
         });
-        this._width = root.width;
-        this._height = root.height;
+
+        var elFPS = $(.zr-fps);
+        if(elFPS)
+            this.fps = FPS(elFPS);
 
         /**
         * @type {module:zrender/Storage}
@@ -336,13 +337,13 @@ class Painter
         var list = layer.__paintList || this.storage.getDisplayList(false);
         layer.__paintList = null;
         if(!list || list.length < layer.__endIndex) return;
-        
         var finished = this._doPaintList(layer, list, paintAll, keepState);
         if(!finished)
         {
             layer.__paintList = list;
             layer.refresh(false);
         }
+        this.fps && this.fps();
     }
 
     function _doPaintList(layer,list, paintAll, keepState) {
@@ -404,7 +405,7 @@ class Painter
             // And setTransform with scale 0 will cause set back transform failed.
             && !(m && !m[0] && !m[3])
             // Ignore culled element
-            && !(el.culling && isDisplayableCulled(el, this._width, this._height))
+            && !(el.culling && isDisplayableCulled(el, this.root.box(#width), this.root.box(#height)))
         ) {
             var clipPaths = el.__clipPaths;
 
@@ -631,7 +632,7 @@ class Painter
     /**
      * 区域大小变化后重绘
      */
-    function resize(width = undefined, height = undefined) {
+    /*function resize(width = undefined, height = undefined) {
         // Save input w/h
         var opts = this._opts;
         width !== undefined && (opts.width = width);
@@ -653,7 +654,7 @@ class Painter
         this._height = height;
         
         return this;
-    }
+    }*/
 
     /**
      * 清除单独的一个层
@@ -689,19 +690,14 @@ class Painter
      * 获取绘图区域宽度
      */
     function getWidth() {
-        return this._width;
+        return this.root.box(#width);
     }
 
     /**
      * 获取绘图区域高度
      */
     function getHeight() {
-        return this._height;
-    }
-
-    function _getSize(whIdx) {
-        if(whIdx === 0) return this.root.width;
-        return this.root.height;
+        return this.root.box(#height);
     }
 
     function pathToImage(path) {

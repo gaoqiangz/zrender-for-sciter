@@ -34,8 +34,8 @@ class EmptyProxy
 } //class EmptyProxy
 
 var handlerNames = [
-    "click", "dblclick", "mousewheel", "mouseout",
-    "mouseup", "mousedown", "mousemove", "contextmenu"
+    #click, #dblclick, #mousewheel, #mouseout,
+    #mouseup, #mousedown, #mousemove, #contextmenu
 ];
 
 class Handler
@@ -102,7 +102,7 @@ class Handler
 
         if (proxy) {
             util.each(handlerNames, function (name) {
-                proxy.on && proxy.on(name, this.(name), this);
+                proxy.on(name, this.(name), this);
             }, this);
             // Attach handler
             proxy.handler = this;
@@ -123,7 +123,7 @@ class Handler
         {
             var (x1,y1,x2,y2) = event.target.box(#rect);
             if(x1 <= x && x2 >= x && y1 <= y && y2 >= y)
-                this.dispatchToElement(lastHovered, "mousemove", event);
+                this.dispatchToElement(lastHovered, #mousemove, event);
             return;
         }
 
@@ -139,24 +139,24 @@ class Handler
         var hovered = this._hovered = this.findHover(x, y);
         var hoveredTarget = hovered.target;
         
-        this.proxy.setCursor(hoveredTarget/* && hoveredTarget.draggable*/ ? hoveredTarget.cursor : "default");
+        this.proxy.setCursor(hoveredTarget && hoveredTarget.draggable ? hoveredTarget.cursor : "default");
         
         // Mouse out on previous hovered element
         if (lastHoveredTarget && hoveredTarget !== lastHoveredTarget) {
-            this.dispatchToElement(lastHovered, "mouseout", event);
+            this.dispatchToElement(lastHovered, #mouseout, event);
         }
 
         // Mouse moving on one element
-        this.dispatchToElement(hovered, "mousemove", event);
+        this.dispatchToElement(hovered, #mousemove, event);
 
         // Mouse over on a new element
         if (hoveredTarget && hoveredTarget !== lastHoveredTarget) {
-            this.dispatchToElement(hovered, "mouseover", event);
+            this.dispatchToElement(hovered, #mouseover, event);
         }
     }
 
     function mouseout(event) {
-        this.dispatchToElement(this._hovered, "mouseout", event);
+        this.dispatchToElement(this._hovered, #mouseout, event);
         
         // There might be some doms created by upper layer application
         // at the same level of painter.getViewportRoot() (e.g., tooltip
@@ -174,7 +174,7 @@ class Handler
 
         !innerDom && this.trigger("globalout", {event: event});*/
         if(!event.target.belongsTo(this.painterRoot))
-            this.trigger("globalout", {event: event});
+            this.trigger(#globalout, {event: event});
     }
 
     /**
@@ -190,7 +190,7 @@ class Handler
      * @param {event=} eventArgs
      */
     function dispatch(eventName, eventArgs) {
-        var handler = this.(eventName);
+        var handler = this.(symbol(eventName));
         handler && handler.call(this, eventArgs);
     }
 
@@ -229,12 +229,14 @@ class Handler
         if (el && el.silent) {
             return;
         }
-        var eventHandler = "on" + eventName;
+        if(typeof eventName === #string)
+            eventName = symbol(eventName);
+        var eventHandler = symbol("on" + eventName);
         var eventPacket = makeEventPacket(eventName, targetInfo, event);
 
         while (el) {
-            el[eventHandler]
-                && (eventPacket.cancelBubble = el[eventHandler].call(el, eventPacket));
+            var handler = el.(eventHandler);
+            handler && (eventPacket.cancelBubble = handler.call(el, eventPacket));
 
             el.trigger(eventName, eventPacket);
 
@@ -251,8 +253,9 @@ class Handler
             // 分发事件到用户自定义层
             // 用户有可能在全局 click 事件中 dispose，所以需要判断下 painter 是否存在
             this.painter && this.painter.eachOtherLayer(function (layer) {
-                if (typeof(layer[eventHandler]) == #function) {
-                    layer[eventHandler].call(layer, eventPacket);
+                var handler = layer.(eventHandler);
+                if (typeof(handler) === #function) {
+                    handler.call(layer, eventPacket);
                 }
                 if (layer.trigger) {
                     layer.trigger(eventName, eventPacket);
@@ -272,18 +275,40 @@ class Handler
     function findHover(x, y, exclude = undefined) {
         var list = this.storage.getDisplayList();
         var out = {x: x, y: y};
+        var hoverCheckResult;
+        var displayable;
 
         for (var i = list.length - 1; i >= 0 ; --i) {
-            var hoverCheckResult;
-            if (list[i] !== exclude
+            displayable = list[i];
+            if (displayable !== exclude
                 // getDisplayList may include ignored item in VML mode
-                && !list[i].ignore
-                && (hoverCheckResult = isHover(list[i], x, y))
+                && !displayable.ignore
             ) {
-                !out.topTarget && (out.topTarget = list[i]);
-                if (hoverCheckResult !== #SILENT) {
-                    out.target = list[i];
-                    break;
+                hoverCheckResult = false;
+                if (displayable.(displayable.rectHover ? #rectContain : #contain)(x, y)) {
+                    hoverCheckResult = true;
+                    var el = displayable;
+                    while (el) {
+                        // If clipped by ancestor.
+                        // FIXME: If clipPath has neither stroke nor fill,
+                        // el.clipPath.contain(x, y) will always return false.
+                        if (el.clipPath && !el.clipPath.contain(x, y))  {
+                            hoverCheckResult = false;
+                            break;
+                        }
+                        if (el.silent) {
+                            hoverCheckResult = #SILENT;
+                        }
+                        el = el.parent;
+                    }
+                }
+                if(hoverCheckResult)
+                {
+                    !out.topTarget && (out.topTarget = displayable);
+                    if (hoverCheckResult !== #SILENT) {
+                        out.target = displayable;
+                        break;
+                    }
                 }
             }
         }
@@ -293,46 +318,24 @@ class Handler
 
 } //class Handler
 
-function isHover(displayable, x, y) {
-    if (displayable.(displayable.rectHover ? "rectContain" : "contain")(x, y)) {
-        var el = displayable;
-        var isSilent;
-        while (el) {
-            // If clipped by ancestor.
-            // FIXME: If clipPath has neither stroke nor fill,
-            // el.clipPath.contain(x, y) will always return false.
-            if (el.clipPath && !el.clipPath.contain(x, y))  {
-                return false;
-            }
-            if (el.silent) {
-                isSilent = true;
-            }
-            el = el.parent;
-        }
-        return isSilent ? #SILENT : true;
-    }
-
-    return false;
-}
-
 var __dummy = (function() {
     // Common handlers
-    util.each(["click", "mousedown", "mouseup", "mousewheel", "dblclick", "contextmenu"], function (name) {
+    util.each([#click, #mousedown, #mouseup, #mousewheel, #dblclick, #contextmenu], function (name) {
         Handler[name] = function (event) {
             // Find hover again to avoid click event is dispatched manually. Or click is triggered without mouseover
             var hovered = this.findHover(event.zrX, event.zrY);
             var hoveredTarget = hovered.target;
 
-            if (name === "mousedown") {
+            if (name === #mousedown) {
                 this._downEl = hoveredTarget;
                 this._downPoint = [event.zrX, event.zrY];
                 // In case click triggered before mouseup
                 this._upEl = hoveredTarget;
             }
-            else if (name === "mouseup") {
+            else if (name === #mouseup) {
                 this._upEl = hoveredTarget;
             }
-            else if (name === "click") {
+            else if (name === #click) {
                 if (this._downEl !== this._upEl
                     // Original click event is triggered on the whole canvas element,
                     // including the case that `mousedown` - `mousemove` - `mouseup`,

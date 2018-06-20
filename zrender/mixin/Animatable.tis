@@ -40,11 +40,11 @@ class Animatable
             var prop = el;
             // If animating shape
             animatingShape = pathSplitted[0] === "shape";
-            for (var i in pathSplitted.length) {
+            for (var path in pathSplitted) {
                 if (!prop) {
                     continue;
                 }
-                prop = prop.(pathSplitted[i]);
+                prop = prop.(symbol(path));
             }
             if (prop) {
                 target = prop;
@@ -153,7 +153,7 @@ class Animatable
 
         // Animators may be removed immediately after start
         // if there is nothing to animate
-        var animators = this.animators.slice(0);
+        var animators = this.animators.clone();
         var count = animators.length;
         function done() {
             count--;
@@ -169,10 +169,9 @@ class Animatable
         }
         // Start after all animators created
         // Incase any animator is done immediately when all animation properties are not changed
-        for (var i in animators.length) {
-            animators[i]
-                .done(done)
-                .start(easing, forceAnimate);
+        for (var animator in animators) {
+            animator.done(done)
+                    .start(easing, forceAnimate);
         }
     }
 
@@ -205,32 +204,33 @@ class Animatable
         var objShallow = {};
         var propertyCount = 0;
         
-        for (var name in target) {
+        for (var (name,val) in target) {
             if (source.(name) !== undefined) {
-                if (util.isObject(target[name]) && !util.isArrayLike(target[name])) {
+                if (util.isObject(val) && !util.isArrayLike(val)) {
                     this._animateToShallow(
                         path ? path + "." + name : name,
                         source.(name),
-                        target[name],
+                        val,
                         time,
                         delay
                     );
                 }
                 else {
-                    objShallow[name] = target[name];
+                    objShallow[name] = val;
                     propertyCount++;
                 }
             }
-            else if (target[name] !== undefined) {
+            else if (val !== undefined) {
                 // Attr directly if not has property
                 // FIXME, if some property not needed for element ?
                 if (!path) {
-                    this.attr(name, target[name]);
+                    this.attr(name, val);
                 }
                 else {  // Shape or style
                     var props = {};
+                    path = symbol(path);
                     props[path] = {};
-                    props[path][name] = target[name];
+                    props[path][name] = val;
                     this.attr(props);
                 }
             }

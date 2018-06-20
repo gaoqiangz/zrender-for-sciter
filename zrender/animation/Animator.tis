@@ -10,14 +10,6 @@ include "../core/util.tis"
 namespace ns_animator
 {
 
-function defaultGetter(target, key) {
-    return target.(key);
-}
-
-function defaultSetter(target, key, value) {
-    target[key] = value;
-}
-
 /**
  * @param  {number} p0
  * @param  {number} p1
@@ -194,7 +186,7 @@ function catmullRomInterpolate(p0, p1, p2, p3, t, t2, t3) {
 
 function cloneValue(value) {
     if (util.isArrayLike(value)) {
-        var len = value.length;
+        /*var len = value.length;
         if (util.isArrayLike(value[0])) {
             var ret = [];
             for (var i in len) {
@@ -203,7 +195,8 @@ function cloneValue(value) {
             return ret;
         }
 
-        return value.slice(0);
+        return value.slice(0);*/
+        return value.clone(true);
     }
 
     return value;
@@ -219,13 +212,15 @@ function rgba2String(rgba) {
 
 function getArrayDim(keyframes) {
     var lastValue = keyframes[keyframes.length - 1].value;
-    return util.isArrayLike(lastValue && lastValue[0]) ? 2 : 1;
+    if(!lastValue) return 0;
+    return util.isArrayLike(lastValue[0]) ? 2 : 1;
 }
 
 function createTrackClip(animator, easing, oneTrackDone, keyframes, propName, forceAnimate) {
-    var getter = animator._getter;
-    var setter = animator._setter;
-    var useSpline = easing === "spline";
+    assert (!easing || typeof easing === #symbol);
+    assert (typeof propName === #symbol);
+
+    var useSpline = easing === #spline;
 
     var trackLen = keyframes.length;
     if (!trackLen) {
@@ -294,7 +289,7 @@ function createTrackClip(animator, easing, oneTrackDone, keyframes, propName, fo
             }
         }
     }
-    isValueArray && fillArr(getter(animator._target, propName), lastValue, arrDim);
+    isValueArray && fillArr(animator._target.(propName), lastValue, arrDim);
 
     // Cache the key of last frame to speed up when
     // animation playback is sequency
@@ -359,7 +354,7 @@ function createTrackClip(animator, easing, oneTrackDone, keyframes, propName, fo
             if (isValueArray) {
                 catmullRomInterpolateArray(
                     p0, p1, p2, p3, w, w * w, w * w * w,
-                    getter(target, propName),
+                    target.(propName),
                     arrDim
                 );
             }
@@ -381,18 +376,14 @@ function createTrackClip(animator, easing, oneTrackDone, keyframes, propName, fo
                         p0, p1, p2, p3, w, w * w, w * w * w
                     );
                 }
-                setter(
-                    target,
-                    propName,
-                    value
-                );
+                target[propName] = value;
             }
         }
         else {
             if (isValueArray) {
                 interpolateArray(
                     kfValues[frame], kfValues[frame + 1], w,
-                    getter(target, propName),
+                    target.(propName),
                     arrDim
                 );
             }
@@ -412,11 +403,7 @@ function createTrackClip(animator, easing, oneTrackDone, keyframes, propName, fo
                 else {
                     value = interpolateNumber(kfValues[frame], kfValues[frame + 1], w);
                 }
-                setter(
-                    target,
-                    propName,
-                    value
-                );
+                target[propName] = value;
             }
         }
     };
@@ -430,7 +417,7 @@ function createTrackClip(animator, easing, oneTrackDone, keyframes, propName, fo
         ondestroy: oneTrackDone
     });
 
-    if (easing && easing !== "spline") {
+    if (easing && easing !== #spline) {
         clip.easing = easing;
     }
 
@@ -444,17 +431,12 @@ class Animator
     * @constructor
     * @param {Object} target
     * @param {boolean} loop
-    * @param {Function} getter
-    * @param {Function} setter
     */
-    function this(target, loop = false, getter = undefined, setter = undefined) {
+    function this(target, loop = false) {
         this._tracks = {};
         this._target = target;
 
         this._loop = loop || false;
-
-        this._getter = getter || defaultGetter;
-        this._setter = setter || defaultSetter;
 
         this._clipCount = 0;
 
@@ -475,11 +457,13 @@ class Animator
      */
     function when(time /* ms */, props) {
         var tracks = this._tracks;
-        for (var propName in props) {
+        for (var (propName,val) in props) {
+            if(typeof propName === #string)
+                propName = symbol(propName);
             if (!tracks[propName]) {
                 tracks[propName] = [];
                 // Invalid value
-                var value = this._getter(this._target, propName);
+                var value = this._target.(propName);
                 if (value === null || value === undefined) {
                     // zrLog("Invalid property " + propName);
                     continue;
@@ -497,7 +481,7 @@ class Animator
             }
             tracks[propName].push({
                 time: time,
-                value: props[propName]
+                value: val
             });
         }
         return this;
@@ -555,6 +539,9 @@ class Animator
         var me = this;
         var clipCount = 0;
 
+        if(typeof easing === #string)
+            easing = symbol(easing);
+
         var oneTrackDone = function() {
             clipCount--;
             if (!clipCount) {
@@ -563,10 +550,10 @@ class Animator
         };
 
         var lastClip;
-        for (var propName in this._tracks) {
+        for (var (propName,val) in this._tracks) {
             var clip = createTrackClip(
                 this, easing, oneTrackDone,
-                this._tracks[propName], propName, forceAnimate
+                val, propName, forceAnimate
             );
             if (clip) {
                 this._clipList.push(clip);
@@ -586,7 +573,6 @@ class Animator
             var oldOnFrame = lastClip.onframe;
             lastClip.onframe = function (target, percent) {
                 oldOnFrame(target, percent);
-
                 for (var frm in me._onframeList) {
                     frm(target, percent);
                 }

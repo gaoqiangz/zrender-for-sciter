@@ -11,18 +11,18 @@ namespace ns_handlerProxy
 var TOUCH_CLICK_DELAY = 300;
 
 var mouseHandlerNames = [
-    "click", "dblclick", "mousewheel", "mouseout",
-    "mouseup", "mousedown", "mousemove", "contextmenu"
+    #click, #dblclick, #mousewheel, #mouseout,
+    #mouseup, #mousedown, #mousemove, #contextmenu
 ];
 
 var touchHandlerNames = [
-    "touchstart", "touchend", "touchmove"
+    #touchstart, #touchend, #touchmove
 ];
 
 function processGesture(proxy, event, stage) {
     var GestureMgr = proxy._GestureMgr;
 
-    stage === "start" && GestureMgr.clear();
+    stage === #start && GestureMgr.clear();
 
     var gestureInfo = GestureMgr.recognize(
         event,
@@ -30,7 +30,7 @@ function processGesture(proxy, event, stage) {
         proxy.dom
     );
 
-    stage === "end" && GestureMgr.clear();
+    stage === #end && GestureMgr.clear();
 
     // Do not do any preventDefault here. Upper application do that if necessary.
     if (gestureInfo) {
@@ -79,7 +79,7 @@ var domHandlers = {
     mousemove: function (event) {
         event = eventHelper.normalizeEvent(this.dom, event);
         
-        this.trigger("mousemove", event);
+        this.trigger(#mousemove, event);
     },
 
     /**
@@ -102,7 +102,7 @@ var domHandlers = {
             }
         }
 
-        this.trigger("mouseout", event);
+        this.trigger(#mouseout, event);
     },
 
     /**
@@ -119,9 +119,9 @@ var domHandlers = {
         // mouse event in upper applicatoin.
         event.zrByTouch = true;
 
-        this._lastTouchMoment = new Date();
+        this._lastTouchMoment = System.ticks;
 
-        processGesture(this, event, "start");
+        processGesture(this, event, #start);
 
         // In touch device, trigger `mousemove`(`mouseover`) should
         // be triggered, and must before `mousedown` triggered.
@@ -145,7 +145,7 @@ var domHandlers = {
         // mouse event in upper applicatoin.
         event.zrByTouch = true;
 
-        processGesture(this, event, "change");
+        processGesture(this, event, #change);
 
         // Mouse move should always be triggered no matter whether
         // there is gestrue event, because mouse move and pinch may
@@ -168,7 +168,7 @@ var domHandlers = {
         // mouse event in upper applicatoin.
         event.zrByTouch = true;
 
-        processGesture(this, event, "end");
+        processGesture(this, event, #end);
 
         domHandlers.mouseup.call(this, event);
 
@@ -182,7 +182,7 @@ var domHandlers = {
 
         // click event should always be triggered no matter whether
         // there is gestrue event. System click can not be prevented.
-        if (+new Date() - this._lastTouchMoment < TOUCH_CLICK_DELAY) {
+        if (System.ticks - this._lastTouchMoment < TOUCH_CLICK_DELAY) {
             domHandlers.click.call(this, event);
         }
 
@@ -246,7 +246,7 @@ class HandlerDomProxy
 
         function mountHandlers(handlerNames, instance) {
             util.each(handlerNames, function (name) {
-                dom.addEventListener(name, instance._handlers[name]);
+                dom.addEventListener(name.toString(), instance._handlers[name]);
             }, instance);
         }
 
@@ -267,7 +267,7 @@ class HandlerDomProxy
     function dispose() {
         var handlerNames = mouseHandlerNames.concat(touchHandlerNames);
         for (var name in handlerNames) {
-            this.dom.removeEventListener(name, this._handlers[name]);
+            this.dom.removeEventListener(name.toString(), this._handlers[name]);
         }
     }
 
@@ -278,7 +278,7 @@ class HandlerDomProxy
 
 var __dummy = (function() {
     // Common handlers
-    util.each(["click", "mousedown", "mouseup", "mousewheel", "dblclick", "contextmenu"], function (name) {
+    util.each([#click, #dblclick, #mousedown, #mouseup, #mousewheel, #contextmenu], function (name) {
         domHandlers[name] = function (event) {
             event = eventHelper.normalizeEvent(this.dom, event);
             this.trigger(name, event);

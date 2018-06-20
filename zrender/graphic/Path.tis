@@ -38,13 +38,11 @@ class Path : Displayable
         var path = this.path;
         var hasStroke = style.hasStroke();
         var hasFill = style.hasFill();
-        var fill = style.fill;
-        var stroke = style.stroke;
-        var hasFillGradient = hasFill && !!(fill.colorStops);
-        var hasStrokeGradient = hasStroke && !!(stroke.colorStops);
-        var hasFillPattern = hasFill && !!(fill.image);
-        var hasStrokePattern = hasStroke && !!(stroke.image);
-
+        var hasFillGradient = hasFill && !!(style.fill.colorStops);
+        var hasStrokeGradient = hasStroke && !!(style.stroke.colorStops);
+        //var hasFillPattern = hasFill && !!(fill.image);
+        //var hasStrokePattern = hasStroke && !!(style.stroke.image);
+        
         style.bind(ctx, this, prevEl);
         this.setTransform(ctx);
 
@@ -53,11 +51,11 @@ class Path : Displayable
             // Update gradient because bounding rect may changed
             if (hasFillGradient) {
                 rect = rect || this.getBoundingRect();
-                this._fillGradient = style.getGradient(ctx, fill, rect);
+                this._fillGradient = style.getGradient(ctx, style.fill, rect);
             }
             if (hasStrokeGradient) {
                 rect = rect || this.getBoundingRect();
-                this._strokeGradient = style.getGradient(ctx, stroke, rect);
+                this._strokeGradient = style.getGradient(ctx, style.stroke, rect);
             }
         }
         // Use the gradient or pattern
@@ -65,22 +63,19 @@ class Path : Displayable
             // PENDING If may have affect the state
             ctx.fillStyle = this._fillGradient;
         }
-        else if (hasFillPattern) {
-            ctx.fillStyle = getCanvasPattern.call(fill, ctx);
-        }
+        /*else if (hasFillPattern) {
+            ctx.fillStyle = getCanvasPattern.call(style.fill, ctx);
+        }*/
         if (hasStrokeGradient) {
             ctx.strokeStyle = this._strokeGradient;
         }
-        else if (hasStrokePattern) {
-            ctx.strokeStyle = getCanvasPattern.call(stroke, ctx);
-        }
-
-        var lineDash = style.lineDash;
-        var lineDashOffset = style.lineDashOffset;
+        /*else if (hasStrokePattern) {
+            ctx.strokeStyle = getCanvasPattern.call(style.stroke, ctx);
+        }*/
 
         // Update path sx, sy
-        var scale = this.getGlobalScale();
-        path.setScale(scale[0], scale[1]);
+        //var scale = this.getGlobalScale();
+        //path.setScale(scale[0], scale[1]);
 
         // Proxy context
         // Rebuild path in following 2 cases
@@ -96,9 +91,9 @@ class Path : Displayable
             this.__dirtyPath = false;
         }
 
-        if (lineDash) {
-            ctx.setLineDash(lineDash);
-            ctx.lineDashOffset = lineDashOffset;
+        if (style.lineDash) {
+            ctx.setLineDash(style.lineDash);
+            ctx.lineDashOffset = style.lineDashOffset;
         }
 
         if(hasFill && hasStroke)
@@ -108,7 +103,7 @@ class Path : Displayable
         else if(hasStroke)
             path.stroke(ctx);
 
-        if (lineDash) {
+        if (style.lineDash) {
             // PENDING
             // Remove lineDash
             ctx.setLineDash([]);
@@ -180,39 +175,28 @@ class Path : Displayable
     }
 
     function contain(x, y) {
+        var rect = this.getBoundingRect();
         var localPos = this.transformCoordToLocal(x, y);
-        if (this.style.hasFill()) {
-            return this.path.contain(localPos[0],localPos[1]);
-        }
-        return false;
-        /*var rect = this.getBoundingRect();
-        var style = this.style;
         x = localPos[0];
         y = localPos[1];
-
-        if (rect.contain(x, y)) {
-            var pathData = this.path.data;
-            if (style.hasStroke()) {
-                var lineWidth = style.lineWidth;
-                var lineScale = style.strokeNoScale ? this.getLineScale() : 1;
-                // Line scale can"t be 0;
-                if (lineScale > 1e-10) {
-                    // Only add extra hover lineWidth when there are no fill
-                    if (!style.hasFill()) {
-                        lineWidth = Math.max(lineWidth, this.strokeContainThreshold);
-                    }
-                    if (pathContain.containStroke(
-                        pathData, lineWidth / lineScale, x, y
-                    )) {
-                        return true;
-                    }
+        if (!rect.contain(x, y)) return false;
+        var style = this.style;
+        if (style.hasFill()) {
+            return this.path.contain(localPos[0],localPos[1]);
+        }
+        if (style.hasStroke()) {
+            var lineWidth = style.lineWidth;
+            var lineScale = style.strokeNoScale ? this.getLineScale() : 1;
+            // Line scale can"t be 0;
+            if (lineScale > 1e-10) {
+                // Only add extra hover lineWidth when there are no fill
+                if (!style.hasFill()) {
+                    lineWidth = Math.max(lineWidth, this.strokeContainThreshold);
                 }
-            }
-            if (style.hasFill()) {
-                return pathContain.contain(pathData, x, y);
+                return this.path.containStroke(x, y,lineWidth / lineScale,style.hasFill());
             }
         }
-        return false;*/
+        return false;
     }
 
     /**
@@ -240,13 +224,15 @@ class Path : Displayable
      * @param {boolean} loop
      */
     function animateShape(loop) {
-        return this.animate("shape", loop);
+        return this.animate(#shape, loop);
     }
 
     // Overwrite attrKV
     function attrKV(key, value) {
         // FIXME
-        if (key == "shape") {
+        if(typeof key === #stirng)
+            key = symbol(key);
+        if (key === #shape) {
             this.setShape(value);
             this.__dirtyPath = true;
             this._rect = null;
@@ -265,11 +251,13 @@ class Path : Displayable
         // Path from string may not have shape
         if (shape) {
             if (util.isObject(key)) {
-                for (var name in key) {
-                    shape[name] = key[name];
+                for (var (name,val) in key) {
+                    shape[name] = val;
                 }
             }
             else {
+                if(typeof key === #stirng)
+                    key = symbol(key);
                 shape[key] = value;
             }
             this.dirty(true);
@@ -313,9 +301,9 @@ class Path : Displayable
             var defaultShape = defaults.shape;
             if (defaultShape) {
                 this.shape = this.shape || {};
-                for (var name in defaultShape) {
-                    if (!this.shape.hasOwnProperty(name)) {
-                        this.shape[name] = defaultShape[name];
+                for (var (name,val) in defaultShape) {
+                    if (!this.shape.exists(name)) {
+                        this.shape[name] = val;
                     }
                 }
             }
@@ -325,10 +313,10 @@ class Path : Displayable
         Sub.prototype = Path;
         
         // FIXME 不能 extend position, rotation 等引用对象
-        for (var name in defaults) {
+        for (var (name,val) in defaults) {
             // Extending prototype values and methods
-            if (name != "style" && name != "shape") {
-                Sub[name] = defaults[name];
+            if (name !== #style && name !== #shape) {
+                Sub[name] = val;
             }
         }
 

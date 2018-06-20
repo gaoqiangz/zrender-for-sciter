@@ -3,9 +3,9 @@
 class Draggable
 {
     function this() {
-        this.on("mousedown", this._dragStart, this);
-        this.on("mousemove", this._drag, this);
-        this.on("mouseup", this._dragEnd, this);
+        this.on(#mousedown, this._dragStart, this);
+        this.on(#mousemove, this._drag, this);
+        this.on(#mouseup, this._dragEnd, this);
         //取消鼠标移出元素时释放拖拽状态
         //by gaoqiangz
         //this.on("globalout", this._dragEnd, this);
@@ -24,7 +24,7 @@ class Draggable
             //by gaoqiangz
             e.event.target.capture(#strict);
 
-            this.dispatchToElement(_param(draggingTarget, e), "dragstart", e.event);
+            this.dispatchToElement(_param(draggingTarget, e), #dragstart, e.event);
         }
     }
 
@@ -40,7 +40,7 @@ class Draggable
             this._y = y;
 
             draggingTarget.drift(dx, dy, e);
-            this.dispatchToElement(_param(draggingTarget, e), "drag", e.event);
+            this.dispatchToElement(_param(draggingTarget, e), #drag, e.event);
             
             var dropTarget = this.findHover(x, y, draggingTarget).target;
             var lastDropTarget = this._dropTarget;
@@ -48,10 +48,10 @@ class Draggable
 
             if (draggingTarget !== dropTarget) {
                 if (lastDropTarget && dropTarget !== lastDropTarget) {
-                    this.dispatchToElement(_param(lastDropTarget, e), "dragleave", e.event);
+                    this.dispatchToElement(_param(lastDropTarget, e), #dragleave, e.event);
                 }
                 if (dropTarget && dropTarget !== lastDropTarget) {
-                    this.dispatchToElement(_param(dropTarget, e), "dragenter", e.event);
+                    this.dispatchToElement(_param(dropTarget, e), #dragenter, e.event);
                 }
             }
         }
@@ -64,10 +64,10 @@ class Draggable
             draggingTarget.dragging = false;
         }
 
-        this.dispatchToElement(_param(draggingTarget, e), "dragend", e.event);
+        this.dispatchToElement(_param(draggingTarget, e), #dragend, e.event);
 
         if (this._dropTarget) {
-            this.dispatchToElement(_param(this._dropTarget, e), "drop", e.event);
+            this.dispatchToElement(_param(this._dropTarget, e), #drop, e.event);
         }
 
         this._draggingTarget = null;
